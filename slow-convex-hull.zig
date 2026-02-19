@@ -1,13 +1,8 @@
 const std = @import("std");
-const geo = @import("lib.zig");
+const geo = @import("geometric-lib.zig");
 
-/// Represents a point in 2D space
-const Point = struct {
-    x: i32,
-    y: i32,
-};
-
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    _ = init;
     // Create GPA allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -21,4 +16,7 @@ pub fn main() !void {
     while (it.next()) |p| {
         std.debug.print("({d}, {d})\n", .{ p.x, p.y });
     }
+    // Render points
+    // Compute convex hull (slow) I'll do this
+    // Render points + convex hull
 }
