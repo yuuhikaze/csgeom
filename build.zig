@@ -7,14 +7,16 @@ pub fn build(b: *std.Build) void {
     // Create executable
     const exe = b.addExecutable(.{
         .name = "slow-convex-hull",
-        .root_source_file = b.path("slow-convex-hull.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("slow-convex-hull.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
     });
 
     // Link SDL3
-    exe.linkSystemLibrary("SDL3");
-    exe.linkLibC();
+    exe.root_module.linkSystemLibrary("SDL3", .{});
 
     b.installArtifact(exe);
 

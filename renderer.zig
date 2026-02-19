@@ -11,7 +11,7 @@ pub const Renderer = struct {
 
     pub fn init() !Renderer {
         // Initialize SDL
-        if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) {
+        if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO)) {
             std.debug.print("SDL initialization failed: {s}\n", .{sdl.SDL_GetError()});
             return error.SDLInitFailed;
         }
@@ -22,7 +22,7 @@ pub const Renderer = struct {
             "Convex Hull Visualization",
             800,
             600,
-            sdl.SDL_WINDOW_SHOWN,
+            0,
         ) orelse {
             std.debug.print("Window creation failed: {s}\n", .{sdl.SDL_GetError()});
             return error.WindowCreationFailed;
@@ -72,7 +72,7 @@ pub const Renderer = struct {
     pub fn handleEvents(self: *Renderer) bool {
         _ = self;
         var event: sdl.SDL_Event = undefined;
-        while (sdl.SDL_PollEvent(&event) != 0) {
+        while (sdl.SDL_PollEvent(&event)) {
             if (event.type == sdl.SDL_EVENT_QUIT) {
                 return true; // quit requested
             }
