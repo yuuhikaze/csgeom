@@ -57,8 +57,8 @@ pub const Renderer = struct {
         var point_it = points.keyIterator();
         while (point_it.next()) |p| {
             const rect = sdl.SDL_FRect{
-                .x = @as(f32, @floatFromInt(p.x)) - 2.0,
-                .y = @as(f32, @floatFromInt(p.y)) - 2.0,
+                .x = @as(f32, @floatFromInt(p.x)) * 8 - 2.0,
+                .y = @as(f32, @floatFromInt(p.y)) * 6 - 2.0,
                 .w = 4.0,
                 .h = 4.0,
             };
