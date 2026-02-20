@@ -1,5 +1,11 @@
 const std = @import("std");
 
+/// Represents an edge in 2D space
+pub const Edge = struct {
+    from: Point,
+    to: Point,
+};
+
 /// Represents a point in 2D space
 pub const Point = struct {
     x: i32,
@@ -26,6 +32,10 @@ pub fn generateRandomPoints(allocator: std.mem.Allocator, n: usize) !std.AutoHas
     return point_set;
 }
 
-pub fn calculateCrossProduct(u: Point, v: Point) bool {
-    return u.x * v.y - u.y * v.x < 0;
+pub fn calculateCrossProduct(u: Point, v: Point) i32 {
+    return u.x * v.y - u.y * v.x;
+}
+
+pub fn create_vector(a: Point, b: Point) Point {
+    return Point{ .x = b.x - a.x, .y = b.y - a.y };
 }
