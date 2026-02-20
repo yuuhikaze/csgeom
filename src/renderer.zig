@@ -48,7 +48,7 @@ pub const Renderer = struct {
         sdl.SDL_Quit();
     }
 
-    pub fn renderPoints(self: *Renderer, points: set.Set(geo.Point)) void {
+    pub fn render(self: *Renderer, points: set.Set(geo.Point), edges: set.Set(geo.Edge)) void {
         // Get current window size
         var window_w: c_int = undefined;
         var window_h: c_int = undefined;
@@ -65,6 +65,18 @@ pub const Renderer = struct {
         // Clear screen, set background to white
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
         _ = sdl.SDL_RenderClear(self.renderer);
+
+        // Draw convex hull edges (red)
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 0, 0, 255);
+        var edge_it = edges.iterator();
+        while (edge_it.next()) |edge| {
+            const x1 = @as(f32, @floatFromInt(edge.from.x)) * scale + offset_x;
+            const y1 = @as(f32, @floatFromInt(edge.from.y)) * scale + offset_y;
+            const x2 = @as(f32, @floatFromInt(edge.to.x)) * scale + offset_x;
+            const y2 = @as(f32, @floatFromInt(edge.to.y)) * scale + offset_y;
+
+            _ = sdl.SDL_RenderLine(self.renderer, x1, y1, x2, y2);
+        }
 
         // Draw points (black)
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);

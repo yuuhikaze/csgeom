@@ -62,7 +62,7 @@ pub fn main(init: std.process.Init) !void {
     var quit = false;
     while (!quit) {
         quit = renderer.handleEvents();
-        renderer.renderPoints(random_points);
+        renderer.render(random_points, convex_hull);
         rend.sdl.SDL_Delay(16); // ~60 FPS
     }
 }
