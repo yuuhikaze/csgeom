@@ -1,6 +1,6 @@
 const std = @import("std");
 const set = @import("ziglangSet");
-const geo = @import("geometric-lib.zig");
+const geo = @import("geometry.zig");
 
 pub const sdl = @cImport({
     @cInclude("SDL3/SDL.h");

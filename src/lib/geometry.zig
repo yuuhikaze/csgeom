@@ -22,16 +22,15 @@ pub const Point = struct {
 };
 
 /// Generates a set of N unique random points.
-/// Caller owns the returned HashMap and must deinit it.
+/// Caller owns the returned Set and must deinit it.
 pub fn generateRandomPoints(allocator: std.mem.Allocator, n: usize) !set.Set(Point) {
     // var prng = std.Random.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
     var prng = std.Random.DefaultPrng.init(1234);
     const random = prng.random();
 
     var point_set = set.Set(Point).init(allocator);
-    errdefer point_set.deinit(); // Clean up if an error occurs during the loop
+    errdefer point_set.deinit();
 
-    // note: this could be made shorter
     while (point_set.cardinality() < n) {
         const p = Point{
             .x = random.intRangeAtMost(i32, 0, 100),
@@ -42,10 +41,12 @@ pub fn generateRandomPoints(allocator: std.mem.Allocator, n: usize) !set.Set(Poi
     return point_set;
 }
 
+/// Calculates the 2D cross product of two vectors
 pub fn calculateCrossProduct(u: Point, v: Point) i32 {
     return u.x * v.y - u.y * v.x;
 }
 
-pub fn create_vector(a: *Point, b: *Point) Point {
+/// Creates a vector from point a to point b
+pub fn createVector(a: *Point, b: *Point) Point {
     return Point{ .x = b.x - a.x, .y = b.y - a.y };
 }

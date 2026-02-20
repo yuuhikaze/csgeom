@@ -6,9 +6,9 @@ pub fn build(b: *std.Build) void {
 
     // Create executable
     const exe = b.addExecutable(.{
-        .name = "slow-convex-hull",
+        .name = "convex-hull",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/slow-convex-hull.zig"),
+            .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
