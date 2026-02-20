@@ -47,16 +47,16 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Generated {d} unique points:\n", .{random_points.cardinality()});
     while (it_rp.next()) |rnd_point| rnd_point.print();
 
-    // Initialize renderer
-    var renderer = try rend.Renderer.init();
-    defer renderer.deinit();
-
     // Compute convex hull
     std.debug.print("\n", .{});
     var convex_hull = try compute_convex_hull(allocator, random_points);
     defer convex_hull.deinit();
     var it_ch = convex_hull.iterator();
     while (it_ch.next()) |ch_edge| ch_edge.print();
+
+    // Initialize renderer
+    var renderer = try rend.Renderer.init();
+    defer renderer.deinit();
 
     // Render loop
     var quit = false;
