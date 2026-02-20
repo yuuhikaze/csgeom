@@ -1,4 +1,5 @@
 const std = @import("std");
+const set = @import("ziglangSet");
 const geo = @import("geometric-lib.zig");
 
 pub const sdl = @cImport({
@@ -47,7 +48,7 @@ pub const Renderer = struct {
         sdl.SDL_Quit();
     }
 
-    pub fn renderPoints(self: *Renderer, points: std.AutoHashMap(geo.Point, void)) void {
+    pub fn renderPoints(self: *Renderer, points: set.Set(geo.Point)) void {
         // Get current window size
         var window_w: c_int = undefined;
         var window_h: c_int = undefined;
@@ -67,7 +68,7 @@ pub const Renderer = struct {
 
         // Draw points (black)
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);
-        var point_it = points.keyIterator();
+        var point_it = points.iterator();
         while (point_it.next()) |p| {
             const scaled_x = @as(f32, @floatFromInt(p.x)) * scale + offset_x;
             const scaled_y = @as(f32, @floatFromInt(p.y)) * scale + offset_y;

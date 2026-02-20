@@ -8,12 +8,16 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "slow-convex-hull",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("slow-convex-hull.zig"),
+            .root_source_file = b.path("src/slow-convex-hull.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
         }),
     });
+
+    // Add ziglang-set dependency
+    const ziglangSet = b.dependency("ziglangSet", .{});
+    exe.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
 
     // Link SDL3
     exe.root_module.linkSystemLibrary("SDL3", .{});
