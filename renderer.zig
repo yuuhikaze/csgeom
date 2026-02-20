@@ -53,15 +53,15 @@ pub const Renderer = struct {
         var window_h: c_int = undefined;
         _ = sdl.SDL_GetWindowSize(self.window, &window_w, &window_h);
 
-        // Find largest square that fits (1:1 aspect ratio)
+        // Compute bounding box dimensions to preserve 1:1 aspect ratio
         const square_size = @min(window_w, window_h);
         const scale = @as(f32, @floatFromInt(square_size)) / 100.0;
 
-        // Center the square in window
+        // Center the bounding box in window
         const offset_x = @as(f32, @floatFromInt(window_w - square_size)) / 2.0;
         const offset_y = @as(f32, @floatFromInt(window_h - square_size)) / 2.0;
 
-        // Clear screen (white background)
+        // Clear screen, set background to white
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
         _ = sdl.SDL_RenderClear(self.renderer);
 

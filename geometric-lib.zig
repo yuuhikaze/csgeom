@@ -25,3 +25,7 @@ pub fn generateRandomPoints(allocator: std.mem.Allocator, n: usize) !std.AutoHas
     }
     return point_set;
 }
+
+pub fn calculateCrossProduct(u: Point, v: Point) bool {
+    return u.x * v.y - u.y * v.x < 0;
+}
