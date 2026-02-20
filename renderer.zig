@@ -48,6 +48,19 @@ pub const Renderer = struct {
     }
 
     pub fn renderPoints(self: *Renderer, points: std.AutoHashMap(geo.Point, void)) void {
+        // Get current window size
+        var window_w: c_int = undefined;
+        var window_h: c_int = undefined;
+        _ = sdl.SDL_GetWindowSize(self.window, &window_w, &window_h);
+
+        // Find largest square that fits (1:1 aspect ratio)
+        const square_size = @min(window_w, window_h);
+        const scale = @as(f32, @floatFromInt(square_size)) / 100.0;
+
+        // Center the square in window
+        const offset_x = @as(f32, @floatFromInt(window_w - square_size)) / 2.0;
+        const offset_y = @as(f32, @floatFromInt(window_h - square_size)) / 2.0;
+
         // Clear screen (white background)
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
         _ = sdl.SDL_RenderClear(self.renderer);
@@ -56,9 +69,12 @@ pub const Renderer = struct {
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);
         var point_it = points.keyIterator();
         while (point_it.next()) |p| {
+            const scaled_x = @as(f32, @floatFromInt(p.x)) * scale + offset_x;
+            const scaled_y = @as(f32, @floatFromInt(p.y)) * scale + offset_y;
+
             const rect = sdl.SDL_FRect{
-                .x = @as(f32, @floatFromInt(p.x)) * 8 - 2.0,
-                .y = @as(f32, @floatFromInt(p.y)) * 6 - 2.0,
+                .x = scaled_x - 2.0,
+                .y = scaled_y - 2.0,
                 .w = 4.0,
                 .h = 4.0,
             };
