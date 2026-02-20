@@ -53,7 +53,8 @@ pub fn main(init: std.process.Init) !void {
 
     // Compute convex hull
     std.debug.print("\n", .{});
-    const convex_hull = try compute_convex_hull(allocator, random_points);
+    var convex_hull = try compute_convex_hull(allocator, random_points);
+    defer convex_hull.deinit();
     var it_ch = convex_hull.iterator();
     while (it_ch.next()) |ch_edge| ch_edge.print();
 
