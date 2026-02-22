@@ -1,6 +1,7 @@
 const std = @import("std");
 const set = @import("ziglangSet");
-const geo = @import("geometry.zig");
+const lib = @import("lib");
+const geom = lib.geometry;
 
 pub const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -9,8 +10,11 @@ pub const sdl = @cImport({
 pub const Renderer = struct {
     window: *sdl.SDL_Window,
     renderer: *sdl.SDL_Renderer,
+    arena_dimensions: ArenaDimensions,
 
-    pub fn init() !Renderer {
+    const ArenaDimensions = struct { scale: f32, offset_x: f32, offset_y: f32 };
+
+    pub fn init(window_title: []const u8) !Renderer {
         // Initialize SDL
         if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO)) {
             std.debug.print("SDL initialization failed: {s}\n", .{sdl.SDL_GetError()});
@@ -20,7 +24,7 @@ pub const Renderer = struct {
 
         // Create window
         const window = sdl.SDL_CreateWindow(
-            "Convex Hull Visualization",
+            window_title.ptr,
             800,
             600,
             0,
@@ -39,6 +43,7 @@ pub const Renderer = struct {
         return Renderer{
             .window = window,
             .renderer = renderer,
+            .arena_dimensions = .{ .scale = 1.0, .offset_x = 0.0, .offset_y = 0.0 },
         };
     }
 
@@ -48,7 +53,8 @@ pub const Renderer = struct {
         sdl.SDL_Quit();
     }
 
-    pub fn render(self: *Renderer, points: set.Set(geo.Point), edges: set.Set(geo.Edge)) void {
+    /// Create arena (100x100 responsive board)
+    pub fn createArena(self: *Renderer) void {
         // Get current window size
         var window_w: c_int = undefined;
         var window_h: c_int = undefined;
@@ -56,34 +62,24 @@ pub const Renderer = struct {
 
         // Compute bounding box dimensions to preserve 1:1 aspect ratio
         const square_size = @min(window_w, window_h);
-        const scale = @as(f32, @floatFromInt(square_size)) / 100.0;
+        self.arena_dimensions.scale = @as(f32, @floatFromInt(square_size)) / 100.0;
 
         // Center the bounding box in window
-        const offset_x = @as(f32, @floatFromInt(window_w - square_size)) / 2.0;
-        const offset_y = @as(f32, @floatFromInt(window_h - square_size)) / 2.0;
+        self.arena_dimensions.offset_x = @as(f32, @floatFromInt(window_w - square_size)) / 2.0;
+        self.arena_dimensions.offset_y = @as(f32, @floatFromInt(window_h - square_size)) / 2.0;
 
         // Clear screen, set background to white
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 255, 255, 255);
         _ = sdl.SDL_RenderClear(self.renderer);
+    }
 
-        // Draw convex hull edges (red)
-        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 0, 0, 255);
-        var edge_it = edges.iterator();
-        while (edge_it.next()) |edge| {
-            const x1 = @as(f32, @floatFromInt(edge.from.x)) * scale + offset_x;
-            const y1 = @as(f32, @floatFromInt(edge.from.y)) * scale + offset_y;
-            const x2 = @as(f32, @floatFromInt(edge.to.x)) * scale + offset_x;
-            const y2 = @as(f32, @floatFromInt(edge.to.y)) * scale + offset_y;
-
-            _ = sdl.SDL_RenderLine(self.renderer, x1, y1, x2, y2);
-        }
-
-        // Draw points (black)
+    /// Render points (black)
+    pub fn renderPoints(self: *Renderer, points: set.Set(geom.Point)) !void {
         _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);
         var point_it = points.iterator();
         while (point_it.next()) |p| {
-            const scaled_x = @as(f32, @floatFromInt(p.x)) * scale + offset_x;
-            const scaled_y = @as(f32, @floatFromInt(p.y)) * scale + offset_y;
+            const scaled_x = @as(f32, @floatFromInt(p.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const scaled_y = @as(f32, @floatFromInt(p.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
 
             const rect = sdl.SDL_FRect{
                 .x = scaled_x - 2.0,
@@ -93,8 +89,24 @@ pub const Renderer = struct {
             };
             _ = sdl.SDL_RenderFillRect(self.renderer, &rect);
         }
+    }
 
-        // Present renderer
+    /// Render edges (red)
+    pub fn renderEdges(self: *Renderer, edges: set.Set(geom.Edge)) !void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 0, 0, 255);
+        var edge_it = edges.iterator();
+        while (edge_it.next()) |edge| {
+            const x1 = @as(f32, @floatFromInt(edge.from.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const y1 = @as(f32, @floatFromInt(edge.from.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+            const x2 = @as(f32, @floatFromInt(edge.to.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const y2 = @as(f32, @floatFromInt(edge.to.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+
+            _ = sdl.SDL_RenderLine(self.renderer, x1, y1, x2, y2);
+        }
+    }
+
+    /// Present renderer
+    pub fn present(self: *Renderer) void {
         _ = sdl.SDL_RenderPresent(self.renderer);
     }
 

@@ -8,6 +8,10 @@
             .url = "https://github.com/deckarep/ziglang-set/archive/d63232266deb61c334da8f198e32a3fb51012650.tar.gz",
             .hash = "ziglangSet-0.0.1-VUjv0hoUAgAxi3Zu4l_6QRnST7KqzKJW9n0FV1WKfweT",
         },
+        .cli = .{
+            .url = "git+https://github.com/sam701/zig-cli#f95c126f2b7b09ab93f5ae7f450310ec537f8482",
+            .hash = "cli-0.10.0-2eKe_4gHAQCpN9PC5drtdxcXU8gJ6C6W8ZaTstsLNe3K",
+        },
     },
     .paths = .{
         "build.zig",

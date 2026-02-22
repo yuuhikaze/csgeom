@@ -2,3 +2,8 @@
 .zig-cache/
 zig-out/
 zig-pkg/
+# Miscellaneous files
+/misc/
+# Tern DB artifacts
+store.db-shm
+store.db-wal
