@@ -23,9 +23,8 @@ pub const Point = struct {
 
 /// Generates a set of N unique random points.
 /// Caller owns the returned Set and must deinit it.
-pub fn generateRandomPoints(allocator: std.mem.Allocator, n: usize) !set.Set(Point) {
-    // var prng = std.Random.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
-    var prng = std.Random.DefaultPrng.init(1234);
+pub fn generateRandomPoints(allocator: std.mem.Allocator, io: std.Io, n: usize) !set.Set(Point) {
+    var prng = std.Random.DefaultPrng.init(@intCast(std.Io.Clock.now(.awake, io).toMilliseconds()));
     const random = prng.random();
 
     var point_set = set.Set(Point).init(allocator);

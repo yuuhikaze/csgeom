@@ -5,15 +5,13 @@ const hull = @import("lib/convex_hull.zig");
 const rend = @import("lib/renderer.zig");
 
 pub fn main(init: std.process.Init) !void {
-    _ = init;
-
     // Create GPA allocator
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
     // Generate 100 random points
-    var random_points = try geo.generateRandomPoints(allocator, 100);
+    var random_points = try geo.generateRandomPoints(allocator, init.io, 100);
     defer random_points.deinit();
 
     // Show generated points
