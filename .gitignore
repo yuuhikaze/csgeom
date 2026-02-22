@@ -1,2 +1,4 @@
+# Zig build system artifacts
 .zig-cache/
 zig-out/
+zig-pkg/
