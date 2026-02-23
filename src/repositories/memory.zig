@@ -9,10 +9,14 @@ pub const Config = struct {
 
 pub const Algorithm = enum {
     ConvexHull,
+    LineSweep,
 };
 
 pub const Implementation = enum {
+    // ConvexHull
     Slow,
+    // LineSweep
+    TopToBottom,
 };
 
 pub var init: std.process.Init = undefined;

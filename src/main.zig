@@ -22,6 +22,11 @@ pub fn main(init: std.process.Init) !void {
     switch (config.algorithm) {
         .ConvexHull => switch (config.implementation) {
             .Slow => try runners.convex_hull.runSlow(),
+            else => unreachable,
         },
+        .LineSweep => switch (config.implementation) {
+            .TopToBottom => try runners.line_sweep.runTopToBottom(),
+            else => unreachable,
+        }
     }
 }

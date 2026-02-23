@@ -1,5 +1,5 @@
-const set = @import("ziglangSet");
 const std = @import("std");
+const set = @import("ziglangSet");
 const lib = @import("lib");
 const geom = lib.geometry;
 const repositories = @import("repositories");
@@ -35,8 +35,8 @@ pub fn runSlow() !void {
     while (!quit) {
         quit = renderer.handleEvents();
         renderer.createArena();
-        try renderer.renderPoints(random_points);
-        try renderer.renderEdges(convex_hull);
+        try renderer.renderPoints(random_points, .{0, 0, 0});
+        try renderer.renderEdges(convex_hull, .{255, 0, 0});
         renderer.present();
         rdr.sdl.SDL_Delay(16); // ~60 FPS
     }

@@ -22,12 +22,11 @@ pub const Renderer = struct {
         }
         errdefer sdl.SDL_Quit();
 
+        // Request 4 samples for MSAA (Multisample Anti-Aliasing)
+        _ = sdl.SDL_GL_SetAttribute(sdl.SDL_GL_MULTISAMPLESAMPLES, 4);
+
         // Create window
-        const window = sdl.SDL_CreateWindow(
-            window_title.ptr,
-            800,
-            600,
-            0,
+        const window = sdl.SDL_CreateWindow(window_title.ptr, 800, 600, sdl.SDL_WINDOW_HIGH_PIXEL_DENSITY // Ensures crispness on Retina/4K screens
         ) orelse {
             std.debug.print("Window creation failed: {s}\n", .{sdl.SDL_GetError()});
             return error.WindowCreationFailed;
@@ -55,6 +54,7 @@ pub const Renderer = struct {
 
     /// Create arena (100x100 responsive board)
     pub fn createArena(self: *Renderer) void {
+        _ = sdl.SDL_SetRenderDrawBlendMode(self.renderer, sdl.SDL_BLENDMODE_BLEND);
         // Get current window size
         var window_w: c_int = undefined;
         var window_h: c_int = undefined;
@@ -73,9 +73,9 @@ pub const Renderer = struct {
         _ = sdl.SDL_RenderClear(self.renderer);
     }
 
-    /// Render points (black)
-    pub fn renderPoints(self: *Renderer, points: set.Set(geom.Point)) !void {
-        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);
+    /// Render points
+    pub fn renderPoints(self: *Renderer, points: set.Set(geom.Point), rgb: anytype) !void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, rgb.@"0", rgb.@"1", rgb.@"2", 255);
         var point_it = points.iterator();
         while (point_it.next()) |p| {
             const scaled_x = @as(f32, @floatFromInt(p.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
@@ -92,8 +92,8 @@ pub const Renderer = struct {
     }
 
     /// Render edges (red)
-    pub fn renderEdges(self: *Renderer, edges: set.Set(geom.Edge)) !void {
-        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 0, 0, 255);
+    pub fn renderEdges(self: *Renderer, edges: set.Set(geom.Edge), rgb: anytype) !void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, rgb.@"0", rgb.@"1", rgb.@"2", 255);
         var edge_it = edges.iterator();
         while (edge_it.next()) |edge| {
             const x1 = @as(f32, @floatFromInt(edge.from.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
