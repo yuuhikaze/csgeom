@@ -1,8 +1,8 @@
 .{
-    .name = .computer_geomtry,
-    .version = "0.1.0",
+    .name = .computational_geomtry,
+    .version = "1.0.0",
     .minimum_zig_version = "0.16.0-dev.2619+c8f54a2f0",
-    .fingerprint = 0x5ff654903c9c9ee5,
+    .fingerprint = 0x76741dc7469dc055,
     .dependencies = .{
         .ziglangSet = .{
             .url = "https://github.com/deckarep/ziglang-set/archive/d63232266deb61c334da8f198e32a3fb51012650.tar.gz",
