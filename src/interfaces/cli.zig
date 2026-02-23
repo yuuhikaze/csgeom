@@ -10,23 +10,25 @@ pub fn instantiate() !void {
         .command = cli.Command{
             .name = "csgeom",
             .description = cli.Description{
-                .one_line = "Computer Geometry Algorithms - Visualizations with SDL3",
+                .one_line = "Computational Geometry Algorithms - Visualizations with SDL3",
             },
             .target = cli.CommandTarget{
                 .action = cli.CommandAction{ .exec = noOp },
             },
             .options = try r.allocOptions(&.{
                 .{
-                    .long_name = "topic",
-                    .help = "Algorithm family, e.g. ConvexHull (default)",
-                    .value_ref = r.mkRef(&mem.config.topic),
-                    .value_name = "AlgorithmFamilies.*",
+                    .long_name = "algorithm",
+                    .help = "Algorithm, e.g. ConvexHull (default)",
+                    .value_ref = r.mkRef(&mem.config.algorithm),
+                    .value_name = "Algorithm.*",
+                    .short_alias = 'a',
                 },
                 .{
-                    .long_name = "algo",
-                    .help = "Specific algorithm from family, e.g. Slow (default)",
-                    .value_ref = r.mkRef(&mem.config.algo),
-                    .value_name = "Algorithms.*",
+                    .long_name = "implementation",
+                    .help = "Specific implementation, e.g. Slow (default)",
+                    .value_ref = r.mkRef(&mem.config.implementation),
+                    .value_name = "Implementation.*",
+                    .short_alias = 'i',
                 },
             }),
         },

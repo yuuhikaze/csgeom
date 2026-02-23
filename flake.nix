@@ -1,5 +1,5 @@
 {
-  description = "Computer Geometry Algorithms - Visualizations with SDL3";
+  description = "Computational Geometry Algorithms - Visualizations with SDL3";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -21,24 +21,24 @@
           ];
 
           shellHook = ''
-            echo "====== Computer Geometry Environment ======"
-            echo '                           ('
-            echo '          RAAAAaaaaaahh!'
-            echo '                       (   ()   )'
-            echo '             ) ________    //  )'
-            echo '          ()  |\       \  //'
-            echo '         ( \\__ \ ______\//'
-            echo '            \__) | _  _  |'
-            echo '              |  | ^--^  |'
-            echo '               \ |  \/   |'
-            echo '                \|_______|'
-            echo '                //    \\'
-            echo '               ((     ||'
-            echo '                \\    ||'
-            echo '              ( ()    ||'
-            echo '               (      () ) )'
+            echo "====== Computational Geometry Environment ======"
+            echo '                             ('
+            echo '            RAAAAaaaaaahh!'
+            echo '                         (   ()   )'
+            echo '               ) ________    //  )'
+            echo '            ()  |\       \  //'
+            echo '           ( \\__ \ ______\//'
+            echo '              \__) | _  _  |'
+            echo '                |  | ^--^  |'
+            echo '                 \ |  \/   |'
+            echo '                  \|_______|'
+            echo '                  //    \\'
+            echo '                 ((     ||'
+            echo '                  \\    ||'
+            echo '                ( ()    ||'
+            echo '                 (      () ) )'
             echo "Zig: $(zig version)"
-            echo "==========================================="
+            echo "================================================"
           '';
         };
       }

@@ -3,15 +3,15 @@ const std = @import("std");
 pub var config: Config = .{};
 
 pub const Config = struct {
-    topic: AlgorithmFamilies = AlgorithmFamilies.ConvexHull,
-    algo: Algorithms = Algorithms.Slow,
+    algorithm: Algorithm = Algorithm.ConvexHull,
+    implementation: Implementation = Implementation.Slow,
 };
 
-pub const AlgorithmFamilies = enum {
+pub const Algorithm = enum {
     ConvexHull,
 };
 
-pub const Algorithms = enum {
+pub const Implementation = enum {
     Slow,
 };
 

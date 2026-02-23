@@ -1,0 +1,157 @@
+Computational Geometry Algorithms - Visualizations with SDL3
+
+Academic project implementing computational geometry algorithms with real-time
+visualization using SDL3. Built with Zig, supports multiple algorithm families
+and implementations with CLI-based selection.
+
+================================================================================
+WRITING STYLE
+================================================================================
+
+- Technical facts only, no fluff
+- Concise and direct
+- Imperative language for rules (Use X, Never Y)
+- Critical constraints at top of relevant sections
+- Add blank line before lists
+- State things once
+
+================================================================================
+FORMATTING
+================================================================================
+
+AGENTS.txt files use plain text formatting with separator lines.
+
+Level 1 sections:
+================================================================================
+SECTION NAME
+================================================================================
+
+Level 2 subsections:
+--------------------------------------------------------------------------------
+Subsection Name
+--------------------------------------------------------------------------------
+
+No markdown syntax. Plain text only.
+
+================================================================================
+PROJECT ARCHITECTURE
+================================================================================
+
+Directory structure follows idiomatic Zig patterns:
+
+  src/
+    main.zig                  # Entry point, algorithm dispatch
+    interfaces/
+      cli.zig                 # Command-line interface setup
+    lib/
+      mod.zig                 # Public library exports
+      geometry.zig            # Point, Edge, vector operations
+      convex_hull.zig         # Convex hull implementations
+    runners/
+      mod.zig                 # Runner exports
+      convex_hull.zig         # ConvexHull algorithm runners
+    repositories/
+      mod.zig                 # Repository exports
+      memory.zig              # Global state (config, allocator)
+    renderer.zig              # SDL3 visualization
+
+Key separation:
+- lib/: Pure algorithm implementations (no I/O, no global state)
+- runners/: Orchestrate algorithm execution with visualization
+- repositories/: Global state management
+- interfaces/: User interaction (CLI)
+
+================================================================================
+CODE CONVENTIONS
+================================================================================
+
+Module Organization:
+- Each algorithm family has its own lib/*.zig file
+- Each algorithm family has corresponding runners/*.zig file
+- Use mod.zig files to expose public API from directories
+- Never import across module boundaries without explicit build.zig declarations
+
+Naming:
+- Algorithm families: PascalCase (ConvexHull, LineIntersection)
+- Implementations: PascalCase (Slow, GrahamScan)
+- Functions: camelCase (computeSlow, runSlow)
+- Constants: PascalCase (Algorithm, Implementation)
+
+Error Handling:
+- Propagate errors with try/catch, never ignore
+- Use errdefer for cleanup on error paths
+
+Memory Management:
+- Caller owns returned memory unless documented otherwise
+- Use defer/errdefer immediately after allocation
+- Document ownership in function comments
+
+================================================================================
+ADDING NEW ALGORITHMS
+================================================================================
+
+To add a new algorithm family (e.g., LineIntersection):
+
+1. Update repositories/memory.zig:
+   - Add enum variant to Algorithm (e.g., LineIntersection)
+   - Add implementation variants to Implementation (e.g., BruteForce, SweepLine)
+
+2. Create src/lib/line_intersection.zig:
+   - Implement pure functions (no global state, no I/O)
+   - Export public functions (e.g., pub fn computeBruteForce(...))
+   - Add to lib/mod.zig exports
+
+3. Create src/runners/line_intersection.zig:
+   - Import lib, repositories, renderer
+   - Implement runner functions (e.g., pub fn runBruteForce() !void)
+   - Use mem.allocator, mem.init for resources
+   - Handle visualization with renderer module
+   - Add to runners/mod.zig exports
+
+4. Update src/main.zig dispatch:
+   - Add switch case for new algorithm family
+   - Add nested switch for implementations
+
+5. Update build.zig if needed:
+   - Module dependencies already configured
+   - Only update if adding new external dependencies
+
+Example pattern:
+  .LineIntersection => switch (config.implementation) {
+      .BruteForce => try runners.line_intersection.runBruteForce(),
+      .SweepLine => try runners.line_intersection.runSweepLine(),
+  },
+
+================================================================================
+CLI ARGUMENT STRUCTURE
+================================================================================
+
+Command invocation:
+  ./csgeom [OPTIONS]
+
+Options:
+  --algorithm <Algorithm.*>        Algorithm family (default: ConvexHull)
+  --implementation <Implementation.*>  Specific implementation (default: Slow)
+
+Examples:
+  ./csgeom
+  ./csgeom --algorithm=ConvexHull --implementation=Slow
+
+Default behavior runs ConvexHull/Slow when no arguments provided.
+
+================================================================================
+RENDERER INTEGRATION
+================================================================================
+
+Renderer operates on 100x100 coordinate space:
+- Points generated in range [0, 100] × [0, 100]
+- Renderer scales to window size maintaining 1:1 aspect ratio
+- Window dimensions: 800×600 (configurable in renderer.zig)
+
+Render pipeline:
+1. renderer.create_arena() - Set up coordinate transformation
+2. renderer.render_points(points) - Draw all points
+3. renderer.render_edges(edges) - Draw algorithm output
+4. Event loop with SDL_Delay(16) for ~60 FPS
+
+Never modify renderer coordinate system in runner code. Work in 100×100 space.

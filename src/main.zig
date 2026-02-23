@@ -19,8 +19,8 @@ pub fn main(init: std.process.Init) !void {
     // Instantiate interface (CLI)
     try cli.instantiate();
     const config = mem.config;
-    switch (config.topic) {
-        .ConvexHull => switch (config.algo) {
+    switch (config.algorithm) {
+        .ConvexHull => switch (config.implementation) {
             .Slow => try runners.convex_hull.runSlow(),
         },
     }
