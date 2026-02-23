@@ -1,7 +1,5 @@
 const std = @import("std");
 const set = @import("ziglangSet");
-const repositories = @import("repositories");
-const mem = repositories.memory;
 
 /// Represents an edge in 2D space
 pub const Edge = struct {
@@ -25,11 +23,11 @@ pub const Point = struct {
 
 /// Generates a set of N unique random points.
 /// Caller owns the returned Set and must deinit it.
-pub fn generateRandomPoints(n: usize) !set.Set(Point) {
-    var prng = std.Random.DefaultPrng.init(@intCast(std.Io.Clock.now(.awake, mem.init.io).toMilliseconds()));
+pub fn generateRandomPoints(n: usize, allocator: std.mem.Allocator, io: std.Io) !set.Set(Point) {
+    var prng = std.Random.DefaultPrng.init(@intCast(std.Io.Clock.now(.awake, io).toMilliseconds()));
     const random = prng.random();
 
-    var point_set = set.Set(Point).init(mem.allocator);
+    var point_set = set.Set(Point).init(allocator);
     errdefer point_set.deinit();
 
     while (point_set.cardinality() < n) {

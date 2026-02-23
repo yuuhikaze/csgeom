@@ -7,7 +7,7 @@ pub fn instantiate() !void {
     var r = cli.AppRunner.init(&mem.init);
 
     const app = cli.App{
-        .version = "1.0.0",
+        .version = "1.0.1",
         .command = cli.Command{
             .name = "csgeom",
             .description = cli.Description{

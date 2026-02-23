@@ -1,6 +1,6 @@
 .{
     .name = .computational_geomtry,
-    .version = "1.0.0",
+    .version = "1.0.1",
     .minimum_zig_version = "0.16.0-dev.2619+c8f54a2f0",
     .fingerprint = 0x76741dc7469dc055,
     .dependencies = .{

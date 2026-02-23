@@ -8,7 +8,7 @@ const rdr = @import("renderer");
 
 pub fn runSlow() !void {
     // Generate 100 random points
-    var random_points = try geom.generateRandomPoints(100);
+    var random_points = try geom.generateRandomPoints(100, mem.allocator, mem.init.io);
     defer random_points.deinit();
 
     // Show generated points
