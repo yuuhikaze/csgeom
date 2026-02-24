@@ -525,3 +525,281 @@ pub fn RBTree(comptime T: type) type {
         }
     };
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+// Simple integer comparator for testing
+fn compareI32(a: i32, b: i32) Order {
+    if (a < b) return .Less;
+    if (a > b) return .Greater;
+    return .Equal;
+}
+
+test "RBTree: init and deinit" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    try std.testing.expect(tree.isEmpty());
+    try std.testing.expectEqual(null, tree.minimum());
+    try std.testing.expectEqual(null, tree.maximum());
+}
+
+test "RBTree: insert single element" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    try tree.insert(42);
+    try std.testing.expect(!tree.isEmpty());
+    try std.testing.expectEqual(42, tree.minimum());
+    try std.testing.expectEqual(42, tree.maximum());
+    try std.testing.expect(tree.search(42) != null);
+}
+
+test "RBTree: insert and search multiple elements" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert elements
+    const values = [_]i32{ 10, 20, 5, 15, 25, 3, 7 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Verify all elements can be found
+    for (values) |val| {
+        try std.testing.expect(tree.search(val) != null);
+    }
+
+    // Verify non-existent element not found
+    try std.testing.expect(tree.search(100) == null);
+}
+
+test "RBTree: min and max" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    const values = [_]i32{ 50, 30, 70, 20, 40, 60, 80 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    try std.testing.expectEqual(20, tree.minimum());
+    try std.testing.expectEqual(80, tree.maximum());
+}
+
+test "RBTree: delete elements" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert elements
+    const values = [_]i32{ 10, 20, 5, 15, 25, 3, 7 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Delete element
+    try std.testing.expect(tree.delete(20));
+    try std.testing.expect(tree.search(20) == null);
+    try std.testing.expect(tree.search(10) != null);
+
+    // Delete non-existent element
+    try std.testing.expect(!tree.delete(100));
+}
+
+test "RBTree: delete all elements" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    const values = [_]i32{ 10, 20, 5 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Delete all elements
+    for (values) |val| {
+        try std.testing.expect(tree.delete(val));
+    }
+
+    try std.testing.expect(tree.isEmpty());
+    try std.testing.expectEqual(null, tree.minimum());
+}
+
+test "RBTree: successor operations" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    const values = [_]i32{ 50, 30, 70, 20, 40, 60, 80 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Test successors
+    try std.testing.expectEqual(30, tree.successor(20));
+    try std.testing.expectEqual(40, tree.successor(30));
+    try std.testing.expectEqual(50, tree.successor(40));
+    try std.testing.expectEqual(60, tree.successor(50));
+    try std.testing.expectEqual(70, tree.successor(60));
+    try std.testing.expectEqual(80, tree.successor(70));
+
+    // Maximum has no successor
+    try std.testing.expectEqual(null, tree.successor(80));
+
+    // Non-existent element
+    try std.testing.expectEqual(null, tree.successor(100));
+}
+
+test "RBTree: predecessor operations" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    const values = [_]i32{ 50, 30, 70, 20, 40, 60, 80 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Test predecessors
+    try std.testing.expectEqual(70, tree.predecessor(80));
+    try std.testing.expectEqual(60, tree.predecessor(70));
+    try std.testing.expectEqual(50, tree.predecessor(60));
+    try std.testing.expectEqual(40, tree.predecessor(50));
+    try std.testing.expectEqual(30, tree.predecessor(40));
+    try std.testing.expectEqual(20, tree.predecessor(30));
+
+    // Minimum has no predecessor
+    try std.testing.expectEqual(null, tree.predecessor(20));
+
+    // Non-existent element
+    try std.testing.expectEqual(null, tree.predecessor(100));
+}
+
+test "RBTree: inorder traversal returns sorted order" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert in random order
+    const values = [_]i32{ 50, 30, 70, 20, 40, 60, 80, 10, 25, 35 };
+    for (values) |val| {
+        try tree.insert(val);
+    }
+
+    // Get inorder traversal
+    const nodes = try tree.inorder();
+    defer allocator.free(nodes);
+
+    // Verify sorted order
+    const expected = [_]i32{ 10, 20, 25, 30, 35, 40, 50, 60, 70, 80 };
+    try std.testing.expectEqual(expected.len, nodes.len);
+
+    for (expected, 0..) |exp_val, i| {
+        try std.testing.expectEqual(exp_val, nodes[i].key);
+    }
+}
+
+test "RBTree: duplicate insertions" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert same value multiple times
+    try tree.insert(10);
+    try tree.insert(10);
+    try tree.insert(10);
+
+    // Should create multiple nodes (duplicates go to right subtree)
+    const nodes = try tree.inorder();
+    defer allocator.free(nodes);
+
+    try std.testing.expectEqual(3, nodes.len);
+}
+
+test "RBTree: stress test with many insertions" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert 100 elements
+    var i: i32 = 0;
+    while (i < 100) : (i += 1) {
+        try tree.insert(i);
+    }
+
+    // Verify all elements present
+    i = 0;
+    while (i < 100) : (i += 1) {
+        try std.testing.expect(tree.search(i) != null);
+    }
+
+    try std.testing.expectEqual(0, tree.minimum());
+    try std.testing.expectEqual(99, tree.maximum());
+}
+
+test "RBTree: stress test with insertions and deletions" {
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(i32).init(allocator, compareI32);
+    defer tree.deinit();
+
+    // Insert 50 elements
+    var i: i32 = 0;
+    while (i < 50) : (i += 1) {
+        try tree.insert(i);
+    }
+
+    // Delete even elements
+    i = 0;
+    while (i < 50) : (i += 2) {
+        try std.testing.expect(tree.delete(i));
+    }
+
+    // Verify odd elements remain
+    i = 1;
+    while (i < 50) : (i += 2) {
+        try std.testing.expect(tree.search(i) != null);
+    }
+
+    // Verify even elements deleted
+    i = 0;
+    while (i < 50) : (i += 2) {
+        try std.testing.expect(tree.search(i) == null);
+    }
+}
+
+test "RBTree: custom comparator with structs" {
+    const Point = struct {
+        x: i32,
+        y: i32,
+    };
+
+    const comparePoints = struct {
+        fn cmp(a: Point, b: Point) Order {
+            // Compare by x first, then y
+            if (a.x < b.x) return .Less;
+            if (a.x > b.x) return .Greater;
+            if (a.y < b.y) return .Less;
+            if (a.y > b.y) return .Greater;
+            return .Equal;
+        }
+    }.cmp;
+
+    const allocator = std.testing.allocator;
+    var tree = try RBTree(Point).init(allocator, comparePoints);
+    defer tree.deinit();
+
+    try tree.insert(.{ .x = 10, .y = 20 });
+    try tree.insert(.{ .x = 5, .y = 15 });
+    try tree.insert(.{ .x = 15, .y = 25 });
+
+    try std.testing.expect(tree.search(.{ .x = 10, .y = 20 }) != null);
+    try std.testing.expect(tree.search(.{ .x = 5, .y = 15 }) != null);
+    try std.testing.expect(tree.search(.{ .x = 99, .y = 99 }) == null);
+}

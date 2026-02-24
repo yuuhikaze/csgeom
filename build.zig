@@ -69,4 +69,19 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the convex hull visualization");
     run_step.dependOn(&run_cmd.step);
+
+    // Create test step
+    const lib_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lib/mod.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    lib_tests.root_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
+    lib_tests.root_module.addImport("repositories", repositories_module);
+
+    const run_lib_tests = b.addRunArtifact(lib_tests);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_lib_tests.step);
 }
