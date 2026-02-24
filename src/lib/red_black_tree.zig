@@ -15,45 +15,44 @@ pub const RBTree = struct {
     sentinel: *Node,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) RBTree {
-        // allocator.create?
+    pub fn init(allocator: std.mem.Allocator) !RBTree {
         // Instantiate sentinel node
-        var sentinel = Node{
+        const sentinel = try allocator.create(Node);
+        sentinel.* = Node{
             .key = 0,
             .color = .Black,
+            .left = sentinel,
+            .right = sentinel,
+            .parent = sentinel,
         };
-        sentinel.left = &sentinel;
-        sentinel.right = &sentinel;
-        sentinel.parent = &sentinel;
-        // Instantiate root node
-        const root = Node{
-            .key = 0,
-            .color = .Black,
-            // .left = ?,
-            // .right = ?,
-            .parent = &sentinel,
-        };
-        return RBTree{ .root = root, .allocator = allocator };
+        // Instantiate RBTree
+        return RBTree{ .root = sentinel, .sentinel = sentinel, .allocator = allocator };
     }
 
-    fn _postorder(n: *Node, snapshot: std.ArrayList(Node)) void {
-        _postorder(n.left, snapshot);
-        _postorder(n.right, snapshot);
-        snapshot.append(n);
+    fn _postorder(self: *RBTree, n: *Node, snapshot: *std.ArrayList(*Node)) !void {
+        if (n == self.sentinel) return; // base case
+        self._postorder(n.left, snapshot);
+        self._postorder(n.right, snapshot);
+        try snapshot.append(n);
     }
 
     /// Returns slice (snapshot) of nodes induced by postorder
-    pub fn postorder(n: *Node, allocator: std.mem.Allocator) []const Node {
-        const snapshot = std.ArrayList(Node).init(allocator);
-        _postorder(n, snapshot);
-        return snapshot.toOwnedSlice();
+    pub fn postorder(self: *RBTree, n: *Node) ![]*Node {
+        var snapshot = std.ArrayList(*Node).init(self.allocator);
+        errdefer snapshot.deinit(); // clean up snapshot given that appends fail
+        try self._postorder(n, &snapshot);
+        return try snapshot.toOwnedSlice();
     }
 
     pub fn deinit(self: *RBTree) void {
-        const nodes = postorder(self.root, self.allocator);
-        for (nodes) |node| {
-            // node.destroy()?
+        const nodes = self.postorder(self.root);
+        for (nodes) |node_ptr| {
+            // Free nodes memory
+            self.allocator.destroy(node_ptr);
         }
+        // Free nodes list memory
+        self.allocator.free(nodes);
+        // Free sentinel node memory
         self.allocator.destroy(self.sentinel);
     }
 };
