@@ -31,8 +31,8 @@ const Event = struct {
 
     /// Create a START event for a segment
     pub fn start(seg: Edge, upper: Point, allocator: std.mem.Allocator) !Event {
-        var segs = EdgeList.init(allocator);
-        try segs.append(seg);
+        var segs: EdgeList = .empty;
+        try segs.append(allocator, seg);
         return Event{
             .point = upper,
             .event_type = .START,
@@ -43,8 +43,8 @@ const Event = struct {
 
     /// Create an END event for a segment
     pub fn end(seg: Edge, lower: Point, allocator: std.mem.Allocator) !Event {
-        var segs = EdgeList.init(allocator);
-        try segs.append(seg);
+        var segs: EdgeList = .empty;
+        try segs.append(allocator, seg);
         return Event{
             .point = lower,
             .event_type = .END,
@@ -55,9 +55,9 @@ const Event = struct {
 
     /// Create an INTERSECTION event for multiple segments
     pub fn intersection(pt: Point, segments_list: []const Edge, allocator: std.mem.Allocator) !Event {
-        var segs = EdgeList.init(allocator);
+        var segs: EdgeList = .empty;
         for (segments_list) |seg| {
-            try segs.append(seg);
+            try segs.append(allocator, seg);
         }
         return Event{
             .point = pt,
@@ -69,7 +69,7 @@ const Event = struct {
 
     /// Free memory used by event
     pub fn deinit(self: *Event) void {
-        self.segments.deinit();
+        self.segments.deinit(self.allocator);
     }
 };
 
@@ -473,11 +473,11 @@ fn recalculateStatus(status: *RBTree(SegmentWithCache), sweep_y: i32, allocator:
     defer allocator.free(nodes);
 
     // Clear status tree
-    var temp_list = EdgeList.init(allocator);
-    defer temp_list.deinit();
+    var temp_list: EdgeList = .empty;
+    defer temp_list.deinit(allocator);
 
     for (nodes) |node| {
-        try temp_list.append(node.key.segment);
+        try temp_list.append(allocator, node.key.segment);
         _ = status.delete(node.key);
     }
 

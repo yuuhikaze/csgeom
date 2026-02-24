@@ -495,33 +495,33 @@ pub fn RBTree(comptime T: type) type {
             if (node == self.sentinel) return;
             try self.postorderHelper(node.left, snapshot);
             try self.postorderHelper(node.right, snapshot);
-            try snapshot.append(node);
+            try snapshot.append(self.allocator, node);
         }
 
         /// Get postorder traversal of tree starting from node
         /// Caller owns returned slice and must free with allocator
         pub fn postorder(self: *Self, node: *NodeT) ![]*NodeT {
-            var snapshot = std.ArrayList(*NodeT).init(self.allocator);
-            errdefer snapshot.deinit();
+            var snapshot: std.ArrayList(*NodeT) = .empty;
+            errdefer snapshot.deinit(self.allocator);
             try self.postorderHelper(node, &snapshot);
-            return try snapshot.toOwnedSlice();
+            return try snapshot.toOwnedSlice(self.allocator);
         }
 
         /// Inorder traversal helper (left, root, right)
         fn inorderHelper(self: *Self, node: *NodeT, snapshot: *std.ArrayList(*NodeT)) !void {
             if (node == self.sentinel) return;
             try self.inorderHelper(node.left, snapshot);
-            try snapshot.append(node);
+            try snapshot.append(self.allocator, node);
             try self.inorderHelper(node.right, snapshot);
         }
 
         /// Get inorder traversal of tree (returns keys in sorted order)
         /// Caller owns returned slice and must free with allocator
         pub fn inorder(self: *Self) ![]*NodeT {
-            var snapshot = std.ArrayList(*NodeT).init(self.allocator);
-            errdefer snapshot.deinit();
+            var snapshot: std.ArrayList(*NodeT) = .empty;
+            errdefer snapshot.deinit(self.allocator);
             try self.inorderHelper(self.root, &snapshot);
-            return try snapshot.toOwnedSlice();
+            return try snapshot.toOwnedSlice(self.allocator);
         }
     };
 }
