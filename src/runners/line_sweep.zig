@@ -2,6 +2,7 @@ const std = @import("std");
 const set = @import("ziglangSet");
 const lib = @import("lib");
 const geom = lib.geometry;
+const line_sweep = lib.line_sweep;
 const repositories = @import("repositories");
 const mem = repositories.memory;
 const rdr = @import("renderer");
@@ -16,12 +17,20 @@ pub fn runTopToBottom() !void {
     std.debug.print("Generated {d} unique edges:\n", .{random_edges.cardinality()});
     while (it_re.next()) |rnd_edge| rnd_edge.print();
 
-    // Compute line sweep TODO
+    // Compute line sweep intersections using de Berg's algorithm
+    std.debug.print("\nComputing intersections using line sweep algorithm...\n", .{});
+    var intersections = try line_sweep.computeTopToBottom(random_edges, mem.allocator);
+    defer intersections.deinit();
 
-    // Show intersections TODO
+    // Show intersections found
+    std.debug.print("\nFound {d} intersection points:\n", .{intersections.cardinality()});
+    var it_int = intersections.iterator();
+    while (it_int.next()) |intersection| {
+        std.debug.print("  ({d}, {d})\n", .{ intersection.x, intersection.y });
+    }
 
     // Initialize renderer
-    var renderer = try rdr.Renderer.init("Line Sweep - Top to Bottom O(n log(n))");
+    var renderer = try rdr.Renderer.init("Line Sweep - Top to Bottom O((n+k) log n)");
     defer renderer.deinit();
 
     // Render loop
@@ -29,8 +38,13 @@ pub fn runTopToBottom() !void {
     while (!quit) {
         quit = renderer.handleEvents();
         renderer.createArena();
+
+        // Render segments in black
         try renderer.renderEdges(random_edges, .{ 0, 0, 0 });
-        // try renderer.renderPoints(intersections);
+
+        // Render intersection points in red
+        try renderer.renderPoints(intersections, .{ 255, 0, 0 });
+
         renderer.present();
         rdr.sdl.SDL_Delay(16); // ~60 FPS
     }

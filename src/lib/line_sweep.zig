@@ -7,6 +7,7 @@ const Point = geom.Point;
 const Edge = geom.Edge;
 const RBTree = rbt.RBTree;
 const Order = rbt.Order;
+const EdgeList = std.ArrayList(Edge);
 
 // ============================================================================
 // Event Types and Structures
@@ -25,12 +26,12 @@ const EventType = enum {
 const Event = struct {
     point: Point, // Location of event
     event_type: EventType, // Type of event
-    segments: std.ArrayList(Edge), // All segments involved in this event
+    segments: EdgeList, // All segments involved in this event
     allocator: std.mem.Allocator, // Allocator for segments list
 
     /// Create a START event for a segment
     pub fn start(seg: Edge, upper: Point, allocator: std.mem.Allocator) !Event {
-        var segs = std.ArrayList(Edge).init(allocator);
+        var segs = EdgeList.init(allocator);
         try segs.append(seg);
         return Event{
             .point = upper,
@@ -42,7 +43,7 @@ const Event = struct {
 
     /// Create an END event for a segment
     pub fn end(seg: Edge, lower: Point, allocator: std.mem.Allocator) !Event {
-        var segs = std.ArrayList(Edge).init(allocator);
+        var segs = EdgeList.init(allocator);
         try segs.append(seg);
         return Event{
             .point = lower,
@@ -54,7 +55,7 @@ const Event = struct {
 
     /// Create an INTERSECTION event for multiple segments
     pub fn intersection(pt: Point, segments_list: []const Edge, allocator: std.mem.Allocator) !Event {
-        var segs = std.ArrayList(Edge).init(allocator);
+        var segs = EdgeList.init(allocator);
         for (segments_list) |seg| {
             try segs.append(seg);
         }
@@ -295,7 +296,8 @@ pub fn computeTopToBottom(segments: set.Set(Edge), allocator: std.mem.Allocator)
 
     // Populate event queue with segment endpoints
     var seg_iter = segments.iterator();
-    while (seg_iter.next()) |seg| {
+    while (seg_iter.next()) |seg_ptr| {
+        const seg = seg_ptr.*; // Dereference pointer from iterator
         const upper = getUpperEndpoint(seg);
         const lower = getLowerEndpoint(seg);
 
@@ -471,7 +473,7 @@ fn recalculateStatus(status: *RBTree(SegmentWithCache), sweep_y: i32, allocator:
     defer allocator.free(nodes);
 
     // Clear status tree
-    var temp_list = std.ArrayList(Edge).init(allocator);
+    var temp_list = EdgeList.init(allocator);
     defer temp_list.deinit();
 
     for (nodes) |node| {
