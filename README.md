@@ -8,6 +8,20 @@ Implementation of computational geometry algorithms with real-time visualization
 
 This project uses Nix for reproducible builds and Zig as the implementation language.
 
+## Prerequisites
+
+Have Nix package manager installed.
+
+1.  Follow installation instructions from official Nix wiki: <https://nix.dev/install-nix.html>
+
+    > Supported platforms: Linux, MacOS, WSL2, Docker
+
+1.  Enable `nix-command` and `flakes` features. Edit `/etc/nix/nix.conf` and add the following line.
+
+    ```conf
+    experimental-features = nix-command flakes
+    ```
+
 ## Setting Up the Environment
 
 Enter the development shell to get access to Zig and SDL3:
