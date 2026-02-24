@@ -16,45 +16,83 @@ const Order = rbt.Order;
 const EventType = enum {
     START, // Segment starts (upper endpoint)
     END, // Segment ends (lower endpoint)
-    INTERSECTION, // Two segments intersect
+    INTERSECTION, // Segments intersect at a point
 };
 
-/// Event in the sweep line algorithm
+/// Event in the sweep line algorithm (de Berg's top-to-bottom approach)
 /// Events are processed in order by y-coordinate (top to bottom), then x
+/// Multiple segments can be associated with a single event point
 const Event = struct {
     point: Point, // Location of event
     event_type: EventType, // Type of event
-    segment: ?Edge, // Associated segment (for START/END events)
-    segments: ?[2]Edge, // Intersecting segments (for INTERSECTION events)
+    segments: std.ArrayList(Edge), // All segments involved in this event
+    allocator: std.mem.Allocator, // Allocator for segments list
 
     /// Create a START event for a segment
-    pub fn start(seg: Edge, upper: Point) Event {
+    pub fn start(seg: Edge, upper: Point, allocator: std.mem.Allocator) !Event {
+        var segs = std.ArrayList(Edge).init(allocator);
+        try segs.append(seg);
         return Event{
             .point = upper,
             .event_type = .START,
-            .segment = seg,
-            .segments = null,
+            .segments = segs,
+            .allocator = allocator,
         };
     }
 
     /// Create an END event for a segment
-    pub fn end(seg: Edge, lower: Point) Event {
+    pub fn end(seg: Edge, lower: Point, allocator: std.mem.Allocator) !Event {
+        var segs = std.ArrayList(Edge).init(allocator);
+        try segs.append(seg);
         return Event{
             .point = lower,
             .event_type = .END,
-            .segment = seg,
-            .segments = null,
+            .segments = segs,
+            .allocator = allocator,
         };
     }
 
-    /// Create an INTERSECTION event for two segments
-    pub fn intersection(pt: Point, s1: Edge, s2: Edge) Event {
+    /// Create an INTERSECTION event for multiple segments
+    pub fn intersection(pt: Point, segments_list: []const Edge, allocator: std.mem.Allocator) !Event {
+        var segs = std.ArrayList(Edge).init(allocator);
+        for (segments_list) |seg| {
+            try segs.append(seg);
+        }
         return Event{
             .point = pt,
             .event_type = .INTERSECTION,
-            .segment = null,
-            .segments = [2]Edge{ s1, s2 },
+            .segments = segs,
+            .allocator = allocator,
         };
+    }
+
+    /// Free memory used by event
+    pub fn deinit(self: *Event) void {
+        self.segments.deinit();
+    }
+};
+
+// ============================================================================
+// Segment with Cached Value for Status Structure
+// ============================================================================
+
+/// Wrapper for segment with cached x-coordinate at current sweep line
+/// This avoids repeated interpolation calculations (similar to Java implementation)
+const SegmentWithCache = struct {
+    segment: Edge, // The actual segment
+    cached_x: f64, // x-coordinate at current sweep line y
+
+    /// Create from segment and sweep line position
+    pub fn init(seg: Edge, sweep_y: i32) SegmentWithCache {
+        return SegmentWithCache{
+            .segment = seg,
+            .cached_x = interpolateX(seg, sweep_y),
+        };
+    }
+
+    /// Update cached value for new sweep line position
+    pub fn recalculate(self: *SegmentWithCache, sweep_y: i32) void {
+        self.cached_x = interpolateX(self.segment, sweep_y);
     }
 };
 
@@ -62,7 +100,7 @@ const Event = struct {
 // Comparator Functions
 // ============================================================================
 
-/// Compare events for event queue ordering
+/// Compare events for event queue ordering (de Berg's algorithm)
 /// Events are ordered by:
 /// 1. y-coordinate (descending - higher y values first for top-to-bottom sweep)
 /// 2. x-coordinate (ascending - left to right)
@@ -95,27 +133,16 @@ fn compareEvents(a: Event, b: Event) Order {
     return .Equal;
 }
 
-/// Context for segment comparison in status structure
+/// Compare segments in status structure (de Berg's top-to-bottom sweep)
 /// Segments are ordered by their x-coordinate at the current sweep line
-const StatusContext = struct {
-    sweep_y: i32, // Current y-coordinate of sweep line
-};
+/// Uses cached values for efficiency (no repeated interpolation)
+fn compareSegmentsInStatus(a: SegmentWithCache, b: SegmentWithCache) Order {
+    if (a.cached_x < b.cached_x) return .Less;
+    if (a.cached_x > b.cached_x) return .Greater;
 
-/// Compare segments for status structure ordering
-/// Segments are ordered by their x-coordinate at the current sweep line position
-/// This function needs the sweep line y-coordinate to determine ordering
-fn compareSegmentsAtSweepLine(ctx: StatusContext, a: Edge, b: Edge) Order {
-    // Calculate x-coordinate where each segment intersects the sweep line
-    const x_a = interpolateX(a, ctx.sweep_y);
-    const x_b = interpolateX(b, ctx.sweep_y);
-
-    if (x_a < x_b) return .Less;
-    if (x_a > x_b) return .Greater;
-
-    // If x-coordinates are equal, use slope as tie-breaker
-    // Segments with smaller slope (more horizontal) come first
-    const slope_a = calculateSlope(a);
-    const slope_b = calculateSlope(b);
+    // Tie-break by slope (segments with smaller slope come first)
+    const slope_a = calculateSlope(a.segment);
+    const slope_b = calculateSlope(b.segment);
 
     if (slope_a < slope_b) return .Less;
     if (slope_a > slope_b) return .Greater;
@@ -133,9 +160,8 @@ fn interpolateX(seg: Edge, y: i32) f64 {
     const p1 = seg.from;
     const p2 = seg.to;
 
-    // Handle vertical segments (undefined slope)
+    // Handle horizontal segments
     if (p1.y == p2.y) {
-        // Horizontal segment - return leftmost x
         return @floatFromInt(@min(p1.x, p2.x));
     }
 
@@ -149,12 +175,10 @@ fn interpolateX(seg: Edge, y: i32) f64 {
 }
 
 /// Calculate slope of segment
-/// Returns a large value for nearly vertical segments
 fn calculateSlope(seg: Edge) f64 {
     const dy: f64 = @floatFromInt(seg.to.y - seg.from.y);
     const dx: f64 = @floatFromInt(seg.to.x - seg.from.x);
 
-    // Avoid division by zero for vertical segments
     if (@abs(dx) < 0.0001) {
         return if (dy > 0) 1e9 else -1e9;
     }
@@ -201,25 +225,18 @@ fn segmentsIntersect(s1: Edge, s2: Edge) ?Point {
     const d2_x: i64 = @as(i64, p4.x) - @as(i64, p3.x);
     const d2_y: i64 = @as(i64, p4.y) - @as(i64, p3.y);
 
-    // Calculate cross product of direction vectors
-    // If cross product is 0, segments are parallel
+    // Calculate cross product (if 0, segments are parallel)
     const cross: i64 = d1_x * d2_y - d1_y * d2_x;
-    if (cross == 0) {
-        // Segments are parallel - check if collinear and overlapping
-        // For simplicity, we'll skip collinear overlaps in this implementation
-        return null;
-    }
+    if (cross == 0) return null; // Parallel segments
 
-    // Calculate parametric intersection parameters t and u
-    // Intersection point: p1 + t * d1 = p3 + u * d2
+    // Calculate parametric intersection parameters
     const dx: i64 = @as(i64, p3.x) - @as(i64, p1.x);
     const dy: i64 = @as(i64, p3.y) - @as(i64, p1.y);
 
     const t_num: i64 = dx * d2_y - dy * d2_x;
     const u_num: i64 = dx * d1_y - dy * d1_x;
 
-    // Check if intersection is within both segments (0 <= t <= 1 and 0 <= u <= 1)
-    // We need: 0 <= t_num/cross <= 1 and 0 <= u_num/cross <= 1
+    // Check if intersection is within both segments
     const t_valid = if (cross > 0)
         (t_num >= 0 and t_num <= cross)
     else
@@ -230,192 +247,209 @@ fn segmentsIntersect(s1: Edge, s2: Edge) ?Point {
     else
         (u_num <= 0 and u_num >= cross);
 
-    if (!t_valid or !u_valid) {
-        return null; // Intersection outside segment bounds
-    }
+    if (!t_valid or !u_valid) return null;
 
-    // Calculate actual intersection point
-    // Use integer arithmetic to maintain precision
+    // Calculate intersection point
     const ix: i32 = @intCast(p1.x + @divTrunc(t_num * d1_x, cross));
     const iy: i32 = @intCast(p1.y + @divTrunc(t_num * d1_y, cross));
 
     return Point{ .x = ix, .y = iy };
 }
 
+/// Check if two points are equal
+fn pointsEqual(p1: Point, p2: Point) bool {
+    return p1.x == p2.x and p1.y == p2.y;
+}
+
+/// Check if two segments are equal (same endpoints)
+fn segmentsEqual(s1: Edge, s2: Edge) bool {
+    return (pointsEqual(s1.from, s2.from) and pointsEqual(s1.to, s2.to)) or
+        (pointsEqual(s1.from, s2.to) and pointsEqual(s1.to, s2.from));
+}
+
 // ============================================================================
-// Main Algorithm
+// Main Algorithm (de Berg's approach)
 // ============================================================================
 
 /// Compute all intersection points of line segments using sweep line algorithm
-/// Time complexity: O((n + k) log n) where n = number of segments, k = number of intersections
+/// Time complexity: O((n + k) log n) where n = segments, k = intersections
 /// Space complexity: O(n)
 ///
-/// Algorithm (Bentley-Ottmann):
-/// 1. Initialize event queue with all segment endpoints
-/// 2. Process events from top to bottom:
-///    - START: Insert segment into status, check neighbors for intersections
-///    - END: Remove segment from status, check if neighbors now intersect
-///    - INTERSECTION: Add to results, swap segments in status, check new neighbors
-/// 3. Return all intersection points found
+/// Algorithm (de Berg, Chapter 2):
+/// - Horizontal sweep line moves top to bottom (decreasing y)
+/// - Event queue Q: events ordered by y-coordinate (descending)
+/// - Status structure T: active segments ordered by x-coordinate at sweep line
 ///
-/// Note: This implementation handles general line segments but may not detect
-/// all cases of overlapping collinear segments
+/// For each event:
+/// - START: insert segment, check neighbors for intersections
+/// - END: remove segment, check if neighbors now intersect
+/// - INTERSECTION: add to results, swap segments, check new neighbors
 pub fn computeTopToBottom(segments: set.Set(Edge), allocator: std.mem.Allocator) !set.Set(Point) {
-    // Initialize result set for intersection points
+    // Result set for intersection points
     var intersections = set.Set(Point).init(allocator);
     errdefer intersections.deinit();
 
-    // Initialize event queue (ordered by y-coordinate, top to bottom)
+    // Event queue (RBTree ordered by y-coordinate, top to bottom)
     var event_queue = try RBTree(Event).init(allocator, compareEvents);
     defer event_queue.deinit();
 
-    // Step 1: Populate event queue with segment endpoints
+    // Populate event queue with segment endpoints
     var seg_iter = segments.iterator();
     while (seg_iter.next()) |seg| {
         const upper = getUpperEndpoint(seg);
         const lower = getLowerEndpoint(seg);
 
         // Add START event at upper endpoint
-        try event_queue.insert(Event.start(seg, upper));
+        const start_event = try Event.start(seg, upper, allocator);
+        try event_queue.insert(start_event);
 
         // Add END event at lower endpoint
-        try event_queue.insert(Event.end(seg, lower));
+        const end_event = try Event.end(seg, lower, allocator);
+        try event_queue.insert(end_event);
     }
 
-    // Note: Status structure requires sweep_y, which changes during processing
-    // For this implementation, we'll use a simpler approach without RBTree for status
-    // and instead use an ArrayList that we keep sorted
-    var status = std.ArrayList(Edge).init(allocator);
+    // Status structure (RBTree of segments ordered by x at sweep line)
+    var status = try RBTree(SegmentWithCache).init(allocator, compareSegmentsInStatus);
     defer status.deinit();
 
-    var current_sweep_y: i32 = std.math.maxInt(i32); // Start from top
+    var current_sweep_y: i32 = std.math.maxInt(i32);
 
-    // Step 2: Process events in order
+    // Process events in order
     while (!event_queue.isEmpty()) {
-        // Get next event (minimum in event queue)
+        // Get and remove next event
         const event_opt = event_queue.minimum();
         if (event_opt == null) break;
 
-        const event = event_opt.?;
-        _ = event_queue.delete(event); // Remove from queue
+        var event = event_opt.?;
+        _ = event_queue.delete(event);
+        defer event.deinit();
 
         // Update sweep line position
         current_sweep_y = event.point.y;
 
+        // Recalculate all cached x-values in status for new sweep line position
+        // (Similar to Java's recalculate() method)
+        try recalculateStatus(&status, current_sweep_y, allocator);
+
         switch (event.event_type) {
             .START => {
-                // Segment starts - add to status structure
-                const seg = event.segment.?;
+                // Process each segment starting at this event
+                for (event.segments.items) |seg| {
+                    // Insert segment into status
+                    const seg_cached = SegmentWithCache.init(seg, current_sweep_y);
+                    try status.insert(seg_cached);
 
-                // Insert segment into status (maintaining sorted order by x at sweep line)
-                try insertSegmentIntoStatus(&status, seg, current_sweep_y);
+                    // Check intersection with left neighbor
+                    const left_opt = status.predecessor(seg_cached);
+                    if (left_opt) |left| {
+                        try reportIntersection(
+                            left.segment,
+                            seg,
+                            current_sweep_y,
+                            &event_queue,
+                            &intersections,
+                            allocator,
+                        );
+                    }
 
-                // Find position of newly inserted segment
-                const idx = findSegmentInStatus(status.items, seg, current_sweep_y) orelse continue;
+                    // Check intersection with right neighbor
+                    const right_opt = status.successor(seg_cached);
+                    if (right_opt) |right| {
+                        try reportIntersection(
+                            seg,
+                            right.segment,
+                            current_sweep_y,
+                            &event_queue,
+                            &intersections,
+                            allocator,
+                        );
+                    }
 
-                // Check intersection with left neighbor
-                if (idx > 0) {
-                    const left_neighbor = status.items[idx - 1];
-                    try checkAndAddIntersection(
-                        left_neighbor,
-                        seg,
-                        current_sweep_y,
-                        &event_queue,
-                        &intersections,
-                    );
-                }
-
-                // Check intersection with right neighbor
-                if (idx + 1 < status.items.len) {
-                    const right_neighbor = status.items[idx + 1];
-                    try checkAndAddIntersection(
-                        seg,
-                        right_neighbor,
-                        current_sweep_y,
-                        &event_queue,
-                        &intersections,
-                    );
+                    // Remove future intersection between neighbors (they're no longer adjacent)
+                    if (left_opt != null and right_opt != null) {
+                        removeFutureIntersection(&event_queue, left_opt.?.segment, right_opt.?.segment);
+                    }
                 }
             },
 
             .END => {
-                // Segment ends - remove from status structure
-                const seg = event.segment.?;
+                // Process each segment ending at this event
+                for (event.segments.items) |seg| {
+                    const seg_cached = SegmentWithCache.init(seg, current_sweep_y);
 
-                // Find segment position before removal
-                const idx = findSegmentInStatus(status.items, seg, current_sweep_y) orelse continue;
+                    // Get neighbors before removal
+                    const left_opt = status.predecessor(seg_cached);
+                    const right_opt = status.successor(seg_cached);
 
-                // Get neighbors before removal
-                const has_left = idx > 0;
-                const has_right = idx + 1 < status.items.len;
+                    // Remove segment from status
+                    _ = status.delete(seg_cached);
 
-                const left_neighbor = if (has_left) status.items[idx - 1] else null;
-                const right_neighbor = if (has_right) status.items[idx + 1] else null;
-
-                // Remove segment from status
-                _ = status.orderedRemove(idx);
-
-                // Check if left and right neighbors now intersect
-                if (left_neighbor != null and right_neighbor != null) {
-                    try checkAndAddIntersection(
-                        left_neighbor.?,
-                        right_neighbor.?,
-                        current_sweep_y,
-                        &event_queue,
-                        &intersections,
-                    );
+                    // Check if left and right neighbors now intersect
+                    if (left_opt != null and right_opt != null) {
+                        try reportIntersection(
+                            left_opt.?.segment,
+                            right_opt.?.segment,
+                            current_sweep_y,
+                            &event_queue,
+                            &intersections,
+                            allocator,
+                        );
+                    }
                 }
             },
 
             .INTERSECTION => {
-                // Intersection found - add to results
+                // Add intersection point to results
                 _ = try intersections.add(event.point);
 
-                // Get intersecting segments
-                const seg1 = event.segments.?[0];
-                const seg2 = event.segments.?[1];
+                // Swap all intersecting segments in status
+                // (Remove, re-insert to get new ordering after intersection)
+                if (event.segments.items.len >= 2) {
+                    const seg1 = event.segments.items[0];
+                    const seg2 = event.segments.items[1];
 
-                // Find positions in status
-                const idx1 = findSegmentInStatus(status.items, seg1, current_sweep_y);
-                const idx2 = findSegmentInStatus(status.items, seg2, current_sweep_y);
+                    const cached1 = SegmentWithCache.init(seg1, current_sweep_y);
+                    const cached2 = SegmentWithCache.init(seg2, current_sweep_y);
 
-                if (idx1 == null or idx2 == null) continue;
+                    // Get neighbors before swap
+                    const left_of_leftmost = status.predecessor(cached1);
+                    const right_of_rightmost = status.successor(cached2);
 
-                // Swap segments in status (they change order after intersection)
-                const min_idx = @min(idx1.?, idx2.?);
-                const max_idx = @max(idx1.?, idx2.?);
+                    // Remove both segments
+                    _ = status.delete(cached1);
+                    _ = status.delete(cached2);
 
-                // Only swap if adjacent
-                if (max_idx - min_idx == 1) {
-                    const temp = status.items[min_idx];
-                    status.items[min_idx] = status.items[max_idx];
-                    status.items[max_idx] = temp;
+                    // Re-insert (they'll be in swapped order now)
+                    try status.insert(cached1);
+                    try status.insert(cached2);
 
-                    // Check new neighbors after swap
-                    // Left segment (now at max_idx) with its new left neighbor
-                    if (max_idx > 0 and max_idx < status.items.len) {
-                        const left_of_swapped = status.items[max_idx - 1];
-                        const swapped_seg = status.items[max_idx];
-                        try checkAndAddIntersection(
-                            left_of_swapped,
-                            swapped_seg,
+                    // Check new neighbors
+                    if (left_of_leftmost != null) {
+                        const leftmost = if (cached1.cached_x < cached2.cached_x) seg1 else seg2;
+                        try reportIntersection(
+                            left_of_leftmost.?.segment,
+                            leftmost,
                             current_sweep_y,
                             &event_queue,
                             &intersections,
+                            allocator,
                         );
+                        const rightmost = if (cached1.cached_x < cached2.cached_x) seg2 else seg1;
+                        removeFutureIntersection(&event_queue, left_of_leftmost.?.segment, rightmost);
                     }
 
-                    // Right segment (now at min_idx) with its new right neighbor
-                    if (min_idx + 1 < status.items.len) {
-                        const swapped_seg = status.items[min_idx];
-                        const right_of_swapped = status.items[min_idx + 1];
-                        try checkAndAddIntersection(
-                            swapped_seg,
-                            right_of_swapped,
+                    if (right_of_rightmost != null) {
+                        const rightmost = if (cached1.cached_x > cached2.cached_x) seg1 else seg2;
+                        try reportIntersection(
+                            rightmost,
+                            right_of_rightmost.?.segment,
                             current_sweep_y,
                             &event_queue,
                             &intersections,
+                            allocator,
                         );
+                        const leftmost = if (cached1.cached_x > cached2.cached_x) seg2 else seg1;
+                        removeFutureIntersection(&event_queue, leftmost, right_of_rightmost.?.segment);
                     }
                 }
             },
@@ -426,82 +460,74 @@ pub fn computeTopToBottom(segments: set.Set(Edge), allocator: std.mem.Allocator)
 }
 
 // ============================================================================
-// Status Structure Helper Functions
+// Helper Functions
 // ============================================================================
 
-/// Insert segment into status structure maintaining sorted order by x at sweep line
-fn insertSegmentIntoStatus(status: *std.ArrayList(Edge), seg: Edge, sweep_y: i32) !void {
-    const x_seg = interpolateX(seg, sweep_y);
+/// Recalculate cached x-values for all segments in status structure
+/// Called when sweep line moves to new y-coordinate
+fn recalculateStatus(status: *RBTree(SegmentWithCache), sweep_y: i32, allocator: std.mem.Allocator) !void {
+    // Get all segments, recalculate, rebuild tree
+    const nodes = try status.inorder();
+    defer allocator.free(nodes);
 
-    // Find insertion position using binary search
-    var insert_pos: usize = 0;
-    for (status.items, 0..) |existing_seg, i| {
-        const x_existing = interpolateX(existing_seg, sweep_y);
-        if (x_seg < x_existing) {
-            insert_pos = i;
-            break;
-        }
-        insert_pos = i + 1;
+    // Clear status tree
+    var temp_list = std.ArrayList(Edge).init(allocator);
+    defer temp_list.deinit();
+
+    for (nodes) |node| {
+        try temp_list.append(node.key.segment);
+        _ = status.delete(node.key);
     }
 
-    // Insert at position
-    try status.insert(insert_pos, seg);
-}
-
-/// Find segment in status structure
-/// Returns index if found, null otherwise
-fn findSegmentInStatus(status_items: []Edge, seg: Edge, sweep_y: i32) ?usize {
-    const x_seg = interpolateX(seg, sweep_y);
-
-    for (status_items, 0..) |existing_seg, i| {
-        const x_existing = interpolateX(existing_seg, sweep_y);
-
-        // Check if segments match (within small tolerance for floating point)
-        if (@abs(x_seg - x_existing) < 0.001) {
-            // Additional check: compare actual segments
-            if (pointsEqual(existing_seg.from, seg.from) and pointsEqual(existing_seg.to, seg.to)) {
-                return i;
-            }
-            if (pointsEqual(existing_seg.from, seg.to) and pointsEqual(existing_seg.to, seg.from)) {
-                return i;
-            }
-        }
+    // Re-insert with updated cached values
+    for (temp_list.items) |seg| {
+        const updated = SegmentWithCache.init(seg, sweep_y);
+        try status.insert(updated);
     }
-
-    return null;
 }
-
-/// Check if two points are equal
-fn pointsEqual(p1: Point, p2: Point) bool {
-    return p1.x == p2.x and p1.y == p2.y;
-}
-
-// ============================================================================
-// Intersection Detection Helper
-// ============================================================================
 
 /// Check if two segments intersect and add intersection event if found
-/// Only adds intersection if it's below the current sweep line (not yet processed)
-fn checkAndAddIntersection(
+/// Only adds intersection if it's below current sweep line (not yet processed)
+fn reportIntersection(
     s1: Edge,
     s2: Edge,
     sweep_y: i32,
     event_queue: *RBTree(Event),
     intersections: *set.Set(Point),
+    allocator: std.mem.Allocator,
 ) !void {
-    // Check if segments intersect
     const intersection_point = segmentsIntersect(s1, s2) orelse return;
 
-    // Only add intersection if it's below or at current sweep line
-    if (intersection_point.y > sweep_y) {
-        return; // Intersection above sweep line - already processed
-    }
+    // Only add if below current sweep line
+    if (intersection_point.y > sweep_y) return;
 
-    // Check if intersection already found
-    if (intersections.contains(intersection_point)) {
-        return; // Already processed
-    }
+    // Don't add if already found
+    if (intersections.contains(intersection_point)) return;
 
-    // Add intersection event to queue
-    try event_queue.insert(Event.intersection(intersection_point, s1, s2));
+    // Create intersection event
+    const segs = [_]Edge{ s1, s2 };
+    const int_event = try Event.intersection(intersection_point, &segs, allocator);
+    try event_queue.insert(int_event);
+}
+
+/// Remove future intersection event between two segments
+/// Used when segments are no longer adjacent in status structure
+fn removeFutureIntersection(event_queue: *RBTree(Event), s1: Edge, s2: Edge) void {
+    // Get all events (inefficient but simple for now)
+    const nodes = event_queue.inorder() catch return;
+    defer event_queue.allocator.free(nodes);
+
+    for (nodes) |node| {
+        const event = node.key;
+        if (event.event_type == .INTERSECTION and event.segments.items.len >= 2) {
+            const es1 = event.segments.items[0];
+            const es2 = event.segments.items[1];
+            if ((segmentsEqual(es1, s1) and segmentsEqual(es2, s2)) or
+                (segmentsEqual(es1, s2) and segmentsEqual(es2, s1)))
+            {
+                _ = event_queue.delete(event);
+                return;
+            }
+        }
+    }
 }
