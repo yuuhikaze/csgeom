@@ -99,96 +99,28 @@ fn circleFromThreePoints(p1: PointF64, p2: PointF64, p3: PointF64) Circle {
     };
 }
 
-/// Welzl's recursive algorithm (iterative version to avoid stack overflow)
-fn welzlIterative(allocator: std.mem.Allocator, points: []PointF64, rng: std.Random) !Circle {
-    // Shuffle points randomly
-    rng.shuffle(PointF64, points);
-
-    var boundary: std.ArrayList(PointF64) = .empty;
-    defer boundary.deinit(allocator);
-
-    var circle = trivialCircle(&[_]PointF64{});
-
-    for (points) |p| {
-        if (!circle.containsPoint(p)) {
-            // Point is outside, must be on boundary
-            boundary.clearRetainingCapacity();
-            try boundary.append(allocator, p);
-            circle = welzlWithBoundary(allocator, points[0..0], boundary.items, p, rng) catch trivialCircle(boundary.items);
-
-            // Rebuild with all previous points
-            circle = try rebuildWithPoint(allocator, points, p, rng);
-        }
+/// Welzl's algorithm - recursive helper with boundary points
+/// welzl_b(P, R): compute smallest circle containing P with R on boundary
+fn welzlRecursive(points: []PointF64, n: usize, boundary: *[3]PointF64, b: usize) Circle {
+    // Base case: no points left or 3 boundary points (circle is determined)
+    if (n == 0 or b == 3) {
+        return trivialCircle(boundary[0..b]);
     }
 
-    return circle;
-}
+    // Pick the last point (after shuffle, this is random)
+    const p = points[n - 1];
 
-fn rebuildWithPoint(allocator: std.mem.Allocator, points: []PointF64, new_point: PointF64, rng: std.Random) !Circle {
-    var boundary: std.ArrayList(PointF64) = .empty;
-    defer boundary.deinit(allocator);
-    try boundary.append(allocator, new_point);
+    // Recursively get circle without this point
+    var circle = welzlRecursive(points, n - 1, boundary, b);
 
-    var circle = trivialCircle(boundary.items);
-
-    for (points) |p| {
-        if (p.x == new_point.x and p.y == new_point.y) continue;
-        if (!circle.containsPoint(p)) {
-            try boundary.append(allocator, p);
-            if (boundary.items.len <= 3) {
-                circle = trivialCircle(boundary.items);
-            } else {
-                // Need to restart with new boundary
-                circle = try rebuildWithTwoPoints(allocator, points, boundary.items[0], p, rng);
-                boundary.clearRetainingCapacity();
-                try boundary.append(allocator, boundary.items[0]);
-                try boundary.append(allocator, p);
-            }
-        }
+    // If p is inside the circle, we're done
+    if (circle.containsPoint(p)) {
+        return circle;
     }
 
-    return circle;
-}
-
-fn rebuildWithTwoPoints(allocator: std.mem.Allocator, points: []PointF64, b1: PointF64, b2: PointF64, rng: std.Random) !Circle {
-    _ = rng;
-    var boundary = [_]PointF64{ b1, b2, undefined };
-    var boundary_count: usize = 2;
-
-    var circle = trivialCircle(boundary[0..boundary_count]);
-
-    for (points) |p| {
-        if ((p.x == b1.x and p.y == b1.y) or (p.x == b2.x and p.y == b2.y)) continue;
-        if (!circle.containsPoint(p)) {
-            if (boundary_count < 3) {
-                boundary[boundary_count] = p;
-                boundary_count += 1;
-                circle = trivialCircle(boundary[0..boundary_count]);
-            }
-            // With 3 boundary points, circle is fully determined
-        }
-    }
-
-    _ = allocator;
-    return circle;
-}
-
-fn welzlWithBoundary(allocator: std.mem.Allocator, points: []PointF64, boundary: []PointF64, new_point: PointF64, rng: std.Random) !Circle {
-    _ = allocator;
-    _ = points;
-    _ = rng;
-
-    if (boundary.len >= 3) {
-        return trivialCircle(boundary);
-    }
-
-    var new_boundary: [3]PointF64 = undefined;
-    for (boundary, 0..) |b, i| {
-        new_boundary[i] = b;
-    }
-    new_boundary[boundary.len] = new_point;
-
-    return trivialCircle(new_boundary[0..boundary.len + 1]);
+    // Otherwise, p must be on the boundary of the minimum circle
+    boundary[b] = p;
+    return welzlRecursive(points, n - 1, boundary, b + 1);
 }
 
 /// Computes minimum enclosing circle using Welzl's algorithm
@@ -214,57 +146,43 @@ pub fn computeWelzl(allocator: std.mem.Allocator, points: set.Set(geom.Point)) !
     return welzlSimple(allocator, point_list.items, rng);
 }
 
-/// Simple iterative Welzl implementation
-fn welzlSimple(allocator: std.mem.Allocator, points: []PointF64, rng: std.Random) !Circle {
+// Add a test that checks all points are contained
+test "welzl: all points contained" {
+    const allocator = std.testing.allocator;
+    var points = set.Set(geom.Point).init(allocator);
+    defer points.deinit();
+
+    // Add various points spread across the space
+    _ = try points.add(geom.Point{ .x = 0, .y = 50 });
+    _ = try points.add(geom.Point{ .x = 100, .y = 50 });
+    _ = try points.add(geom.Point{ .x = 50, .y = 0 });
+    _ = try points.add(geom.Point{ .x = 50, .y = 100 });
+    _ = try points.add(geom.Point{ .x = 25, .y = 25 });
+    _ = try points.add(geom.Point{ .x = 75, .y = 75 });
+
+    const circle = try computeWelzl(allocator, points);
+
+    // Verify all points are contained
+    var it = points.iterator();
+    while (it.next()) |p| {
+        const pf = PointF64.fromPoint(p.*);
+        try std.testing.expect(circle.containsPoint(pf));
+    }
+}
+
+/// Welzl's algorithm entry point
+fn welzlSimple(allocator: std.mem.Allocator, points: []PointF64, rng: std.Random) Circle {
+    _ = allocator;
+
     if (points.len == 0) return Circle{ .center = PointF64{ .x = 0, .y = 0 }, .radius = 0 };
     if (points.len == 1) return Circle{ .center = points[0], .radius = 0 };
 
-    // Shuffle for randomization
+    // Shuffle for randomization (expected O(n) time)
     rng.shuffle(PointF64, points);
 
-    // Start with circle through first point
-    var boundary: std.ArrayList(PointF64) = .empty;
-    defer boundary.deinit(allocator);
-
-    var circle = Circle{ .center = points[0], .radius = 0 };
-
-    var i: usize = 1;
-    while (i < points.len) : (i += 1) {
-        if (!circle.containsPoint(points[i])) {
-            // Restart with points[i] on boundary
-            boundary.clearRetainingCapacity();
-            try boundary.append(allocator, points[i]);
-            circle = trivialCircle(boundary.items);
-
-            // Re-add all previous points
-            var j: usize = 0;
-            while (j < i) : (j += 1) {
-                if (!circle.containsPoint(points[j])) {
-                    try boundary.append(allocator, points[j]);
-                    if (boundary.items.len <= 3) {
-                        circle = trivialCircle(boundary.items);
-                    }
-                    if (boundary.items.len == 3) {
-                        // Circle determined, check remaining previous points
-                        // If any fail, we need different boundary - restart j
-                        var valid = true;
-                        for (0..j) |k| {
-                            if (!circle.containsPoint(points[k])) {
-                                valid = false;
-                                break;
-                            }
-                        }
-                        if (!valid) {
-                            // Try with different third point
-                            _ = boundary.pop();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return circle;
+    // Start recursive algorithm with empty boundary
+    var boundary: [3]PointF64 = undefined;
+    return welzlRecursive(points, points.len, &boundary, 0);
 }
 
 // Tests
