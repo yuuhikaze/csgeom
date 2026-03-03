@@ -369,15 +369,15 @@ Optimal antenna latitude & $-0.1046°$ \\
 Optimal antenna longitude & $-78.6086°$ \\
 Coverage radius & 39.76 km \\
 Circle area & 4,966.78 km² \\
-Convex hull area & 440.68 km² \\
-Area waste & 91.13\% \\
+Convex hull area & 2,765.79 km² \\
+Area waste & 44.31\% \\
 \hline
 \end{tabular}
 \caption{Antenna placement results for Quito parishes}
 \label{tab:antenna-results}
 \end{table}
 
-The high waste percentage (91.13\%) reflects the geographic distribution of Quito's parishes: rural parishes in the northwest (Pacto, Gualea, Nanegal) extend far from the urban core, forcing the enclosing circle to cover substantial unpopulated terrain.
+The waste percentage (44.31\%) reflects the geometric overhead of circular coverage: the enclosing circle must extend beyond the convex hull at all points where the hull boundary is not tangent to the circle. Rural parishes in the northwest (Pacto, Gualea, Nanegal) and southeast (Pintag, Amaguaña) define the circle's diameter, while the hull follows the irregular parish distribution more closely.
 
 \subsection{Discussion}
 
@@ -386,11 +386,11 @@ The optimal antenna location ($-0.1046°$, $-78.6086°$) falls near the parish o
 For practical telecommunications deployment, this analysis suggests that:
 \begin{itemize}
     \item A single antenna requires approximately 40 km radius coverage
-    \item Over 91\% of the circular coverage area contains no parish centroids
+    \item About 44\% of the circular coverage area extends beyond the parish convex hull
     \item Multiple smaller antennas would likely be more efficient
 \end{itemize}
 
-The convex hull provides a tighter bound (440.68 km²), but real antenna coverage is inherently circular (or sector-based), making the enclosing circle the relevant constraint.
+The convex hull provides a tighter bound (2,765.79 km²), but real antenna coverage is inherently circular (or sector-based), making the enclosing circle the relevant constraint.
 
 \section{Conclusion}
 
@@ -404,7 +404,7 @@ The three algorithms presented demonstrate different paradigms in computational 
     \item \textbf{Welzl} demonstrates randomized algorithms, where random ordering provides expected linear time despite worst-case exponential behavior.
 \end{itemize}
 
-The Quito antenna network application demonstrates that these theoretical algorithms have direct practical value. By combining Welzl's algorithm with real geographic data, we determined that covering all 34 Quito parishes requires an antenna with 39.76 km radius, with 91\% area waste compared to the convex hull---highlighting the geometric inefficiency of circular coverage for irregularly distributed populations.
+The Quito antenna network application demonstrates that these theoretical algorithms have direct practical value. By combining Welzl's algorithm with real geographic data, we determined that covering all 34 Quito parishes requires an antenna with 39.76 km radius, with 44\% area waste compared to the convex hull---highlighting the geometric overhead of circular coverage for irregularly distributed populations.
 
 All implementations are available in the accompanying Zig codebase with SDL3 visualization for interactive exploration.
 
