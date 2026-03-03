@@ -161,20 +161,20 @@ pub fn runAntennaQuito() !void {
 
     // 8. Print report
     std.debug.print("\n", .{});
-    std.debug.print("╔══════════════════════════════════════════════════════════════╗\n", .{});
-    std.debug.print("║           ANTENNA PLACEMENT REPORT - QUITO                   ║\n", .{});
-    std.debug.print("╠══════════════════════════════════════════════════════════════╣\n", .{});
-    std.debug.print("║  Parishes analyzed: {d:>41} ║\n", .{parishes.items.len});
-    std.debug.print("║  Optimal antenna center:                                     ║\n", .{});
-    std.debug.print("║    Latitude:  {d:>10.6}°                                   ║\n", .{center_latlon.lat});
-    std.debug.print("║    Longitude: {d:>10.6}°                                   ║\n", .{center_latlon.lon});
-    std.debug.print("║  Coverage radius: {d:>8.2} km                                ║\n", .{radius_km});
-    std.debug.print("╠══════════════════════════════════════════════════════════════╣\n", .{});
-    std.debug.print("║  AREA COMPARISON                                             ║\n", .{});
-    std.debug.print("║    Circle area:      {d:>10.2} km²                          ║\n", .{circle_area_km2});
-    std.debug.print("║    Convex hull area: {d:>10.2} km²                          ║\n", .{hull_area_km2});
-    std.debug.print("║    Area waste:       {d:>10.2}%                             ║\n", .{waste_percent});
-    std.debug.print("╚══════════════════════════════════════════════════════════════╝\n", .{});
+    std.debug.print("╔════════════════════════════════════════════════════════╗\n", .{});
+    std.debug.print("║             ANTENNA PLACEMENT REPORT - QUITO           ║\n", .{});
+    std.debug.print("╚════════════════════════════════════════════════════════╝\n", .{});
+    std.debug.print("  Parishes analyzed: {d}                                  \n", .{parishes.items.len});
+    std.debug.print("  Optimal antenna center:                                 \n", .{});
+    std.debug.print("    Latitude:  {d:>10.6}°                                 \n", .{center_latlon.lat});
+    std.debug.print("    Longitude: {d:>10.6}°                                 \n", .{center_latlon.lon});
+    std.debug.print("  Coverage radius: {d:>8.2} km                            \n", .{radius_km});
+    std.debug.print("══════════════════════════════════════════════════════════\n", .{});
+    std.debug.print("  AREA COMPARISON                                         \n", .{});
+    std.debug.print("    Circle area:      {d:>10.2} km²                       \n", .{circle_area_km2});
+    std.debug.print("    Convex hull area: {d:>10.2} km²                       \n", .{hull_area_km2});
+    std.debug.print("    Area waste:       {d:>10.2}%                          \n", .{waste_percent});
+    std.debug.print("══════════════════════════════════════════════════════════\n", .{});
 
     // 9. Initialize renderer
     var renderer = try rdr.Renderer.init("Quito Antenna Network - Circle + Hull");
