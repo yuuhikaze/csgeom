@@ -46,10 +46,14 @@ Directory structure follows idiomatic Zig patterns:
     lib/
       mod.zig                 # Public library exports
       geometry.zig            # Point, Edge, vector operations
-      convex_hull.zig         # Convex hull implementations
+      convex_hull.zig         # Slow O(n³), Graham Scan O(n log n)
+      segment_intersection.zig # Bentley-Ottmann O((n+k) log n)
+      enclosing_circle.zig    # Welzl O(n) expected
     runners/
       mod.zig                 # Runner exports
-      convex_hull.zig         # ConvexHull algorithm runners
+      convex_hull.zig         # ConvexHull runners
+      segment_intersection.zig # SegmentIntersection runners
+      enclosing_circle.zig    # EnclosingCircle runners
     repositories/
       mod.zig                 # Repository exports
       memory.zig              # Global state (config, allocator)
@@ -116,10 +120,11 @@ To add a new algorithm family (e.g., LineIntersection):
    - Module dependencies already configured
    - Only update if adding new external dependencies
 
-Example pattern:
-  .LineIntersection => switch (config.implementation) {
-      .BruteForce => try runners.line_intersection.runBruteForce(),
-      .SweepLine => try runners.line_intersection.runSweepLine(),
+Dispatch pattern in main.zig:
+  .NewAlgorithm => switch (config.implementation) {
+      .ImplA => try runners.new_algorithm.runImplA(),
+      .ImplB => try runners.new_algorithm.runImplB(),
+      else => return error.InvalidImplementation,
   },
 
 ================================================================================
@@ -127,17 +132,25 @@ CLI ARGUMENT STRUCTURE
 ================================================================================
 
 Command invocation:
-  ./csgeom [OPTIONS]
+  zig build run -- [OPTIONS]
 
 Options:
-  --algorithm <Algorithm.*>        Algorithm family (default: ConvexHull)
-  --implementation <Implementation.*>  Specific implementation (default: Slow)
+  --algorithm <Algorithm>        Algorithm family (default: ConvexHull)
+  --implementation <Impl>        Specific implementation (default: Slow)
+
+Algorithms and valid implementations:
+  ConvexHull:         Slow, GrahamScan
+  SegmentIntersection: BentleyOttmann
+  EnclosingCircle:    Welzl
 
 Examples:
-  ./csgeom
-  ./csgeom --algorithm=ConvexHull --implementation=Slow
+  zig build run
+  zig build run -- --algorithm=ConvexHull --implementation=GrahamScan
+  zig build run -- --algorithm=SegmentIntersection --implementation=BentleyOttmann
+  zig build run -- --algorithm=EnclosingCircle --implementation=Welzl
 
-Default behavior runs ConvexHull/Slow when no arguments provided.
+Run tests:
+  zig build test
 
 ================================================================================
 RENDERER INTEGRATION
@@ -148,10 +161,38 @@ Renderer operates on 100x100 coordinate space:
 - Renderer scales to window size maintaining 1:1 aspect ratio
 - Window dimensions: 800×600 (configurable in renderer.zig)
 
+Render methods:
+  renderPoints(points)           - Black points (4x4 px)
+  renderEdges(edges)             - Red lines
+  renderCircle(center, radius)   - Blue circle (line segments)
+  renderSegments(segments)       - Green lines with black endpoints
+  renderIntersections(points)    - Red squares (8x8 px)
+
 Render pipeline:
-1. renderer.create_arena() - Set up coordinate transformation
-2. renderer.render_points(points) - Draw all points
-3. renderer.render_edges(edges) - Draw algorithm output
+1. renderer.createArena() - Set up coordinate transformation, clear screen
+2. renderer.render*() - Draw primitives
+3. renderer.present() - Display frame
 4. Event loop with SDL_Delay(16) for ~60 FPS
 
 Never modify renderer coordinate system in runner code. Work in 100×100 space.
+
+================================================================================
+ALGORITHM NOTES
+================================================================================
+
+Convex Hull (Graham Scan):
+- Uses i64 for cross product to avoid overflow
+- Sorts by polar angle relative to lowest-rightmost pivot
+- Stack-based scan, pops clockwise/collinear turns
+
+Segment Intersection (Bentley-Ottmann):
+- Event queue: PriorityQueue sorted by (x, y, event_type)
+- Sweep line: ArrayList sorted by y-at-current-x
+- Tracks processed pairs to avoid duplicate intersections
+- Segment struct has id for tracking through events
+
+Minimum Enclosing Circle (Welzl):
+- Recursive algorithm with boundary points (max 3)
+- Uses f64 for circumcenter calculation (requires division)
+- PointF64/Circle structs separate from integer geometry
+- Shuffle input for expected O(n) time complexity
