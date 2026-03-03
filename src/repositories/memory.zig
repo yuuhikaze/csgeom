@@ -11,6 +11,7 @@ pub const Algorithm = enum {
     ConvexHull,
     SegmentIntersection,
     EnclosingCircle,
+    AntennaQuito,
 };
 
 pub const Implementation = enum {

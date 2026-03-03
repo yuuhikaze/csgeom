@@ -52,6 +52,7 @@ pub fn build(b: *std.Build) void {
     runners_module.addImport("lib", lib_module);
     runners_module.addImport("repositories", repositories_module);
     runners_module.addImport("renderer", renderer_module);
+    runners_module.addImport("ziglangSet", ziglangSet.module("ziglangSet"));
     exe.root_module.addImport("runners", runners_module);
 
     // Link SDL3

@@ -33,5 +33,6 @@ pub fn main(init: std.process.Init) !void {
             .Welzl => try runners.enclosing_circle.runWelzl(),
             else => return error.InvalidImplementation,
         },
+        .AntennaQuito => try runners.antenna_quito.runAntennaQuito(),
     }
 }
