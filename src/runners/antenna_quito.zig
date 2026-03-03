@@ -118,25 +118,41 @@ pub fn runAntennaQuito() !void {
     // 7. Calculate areas
     const circle_area_km2 = std.math.pi * radius_km * radius_km;
 
-    // Get hull vertices for area calculation
+    // Get hull vertices for area calculation (must be in polygon order for shoelace)
     var hull_vertices_x: std.ArrayList(f64) = .empty;
     defer hull_vertices_x.deinit(allocator);
     var hull_vertices_y: std.ArrayList(f64) = .empty;
     defer hull_vertices_y.deinit(allocator);
 
-    // Collect unique vertices from hull edges
-    var seen = set.Set(geom.Point).init(allocator);
-    defer seen.deinit();
-
+    // Walk hull edges in order to get vertices in polygon order
     var hull_it = hull.iterator();
-    while (hull_it.next()) |edge| {
-        if (!seen.contains(edge.from)) {
-            _ = try seen.add(edge.from);
-            // Convert back to km
-            const km_x = (@as(f64, @floatFromInt(edge.from.x)) - margin) / scale + min_x;
-            const km_y = (@as(f64, @floatFromInt(edge.from.y)) - margin) / scale + min_y;
+    if (hull_it.next()) |first_edge| {
+        var current = first_edge.from;
+        const start = current;
+
+        // Add first vertex
+        var km_x = (@as(f64, @floatFromInt(current.x)) - margin) / scale + min_x;
+        var km_y = (@as(f64, @floatFromInt(current.y)) - margin) / scale + min_y;
+        try hull_vertices_x.append(allocator, km_x);
+        try hull_vertices_y.append(allocator, km_y);
+
+        current = first_edge.to;
+
+        // Walk until we return to start
+        while (current.x != start.x or current.y != start.y) {
+            km_x = (@as(f64, @floatFromInt(current.x)) - margin) / scale + min_x;
+            km_y = (@as(f64, @floatFromInt(current.y)) - margin) / scale + min_y;
             try hull_vertices_x.append(allocator, km_x);
             try hull_vertices_y.append(allocator, km_y);
+
+            // Find next edge (edge.from == current)
+            var inner_it = hull.iterator();
+            while (inner_it.next()) |edge| {
+                if (edge.from.x == current.x and edge.from.y == current.y) {
+                    current = edge.to;
+                    break;
+                }
+            }
         }
     }
 
