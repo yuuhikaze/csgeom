@@ -1,0 +1,285 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+% Zig syntax highlighting
+\lstdefinelanguage{Zig}{
+    keywords={const, var, fn, pub, return, if, else, while, for, switch, try, catch, defer, errdefer, break, continue, null, undefined, true, false, and, or, struct, enum},
+    sensitive=true,
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    morestring=[b]",
+}
+
+\lstset{
+    language=Zig,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{orange},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=5pt,
+    frame=single,
+    breaklines=true,
+    captionpos=b,
+}
+
+\title{Computational Geometry Algorithms \& Applications}
+\author{Steven Merino}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents implementations of three fundamental computational geometry algorithms: Graham Scan for convex hull computation, Bentley-Ottmann for line segment intersection detection, and Welzl's algorithm for minimum enclosing circle. Each algorithm is explained intuitively with emphasis on the key insights that enable efficient computation. The implementations are developed in Zig with SDL3 visualization.
+\end{abstract}
+
+\section{Introduction}
+
+Computational geometry provides algorithmic solutions to geometric problems that arise in computer graphics, robotics, geographic information systems, and numerous other domains. This work implements three classical algorithms, each demonstrating a different algorithmic paradigm:
+
+\begin{itemize}
+    \item \textbf{Graham Scan}: A sorting-based approach achieving $O(n \log n)$ convex hull computation.
+    \item \textbf{Bentley-Ottmann}: A sweep line algorithm detecting $k$ intersections among $n$ segments in $O((n+k) \log n)$ time.
+    \item \textbf{Welzl}: A randomized incremental algorithm computing the minimum enclosing circle in expected $O(n)$ time.
+\end{itemize}
+
+\section{Convex Hull: Graham Scan}
+
+\subsection{Problem Definition}
+
+Given a set $P$ of $n$ points in the plane, the convex hull is the smallest convex polygon containing all points. Equivalently, it is the shape formed by stretching a rubber band around all points.
+
+\subsection{Algorithm Intuition}
+
+Graham Scan exploits a key observation: if we sort points by polar angle around an extreme point (the lowest, rightmost point), we can construct the hull by traversing points in order and maintaining only those that form left turns.
+
+The algorithm proceeds in three phases:
+
+\begin{enumerate}
+    \item \textbf{Find pivot}: Select the point with minimum $y$-coordinate (rightmost if tied). This point is guaranteed to be on the hull.
+
+    \item \textbf{Sort by polar angle}: Order remaining points by their angle relative to the pivot. Points at the same angle are ordered by distance.
+
+    \item \textbf{Stack-based scan}: Process points in sorted order, maintaining a stack of hull vertices. For each new point, pop vertices from the stack while they would create a right turn (or collinear segment), then push the new point.
+\end{enumerate}
+
+\subsection{The Turn Test}
+
+The core operation is determining turn direction using the cross product. For three consecutive points $p_1, p_2, p_3$, the cross product of vectors $\overrightarrow{p_1p_2}$ and $\overrightarrow{p_1p_3}$ indicates:
+
+\begin{equation}
+    \text{cross}(p_1, p_2, p_3) = (p_2.x - p_1.x)(p_3.y - p_1.y) - (p_2.y - p_1.y)(p_3.x - p_1.x)
+\end{equation}
+
+\begin{itemize}
+    \item Positive: counter-clockwise turn (left turn)
+    \item Negative: clockwise turn (right turn)
+    \item Zero: collinear points
+\end{itemize}
+
+\subsection{Implementation}
+
+The cross product computation uses 64-bit integers to prevent overflow when input coordinates are 32-bit:
+
+\begin{lstlisting}[caption={Cross product with overflow prevention}]
+fn crossProduct(o: Point, a: Point, b: Point) i64 {
+    const oa_x: i64 = @as(i64, a.x) - @as(i64, o.x);
+    const oa_y: i64 = @as(i64, a.y) - @as(i64, o.y);
+    const ob_x: i64 = @as(i64, b.x) - @as(i64, o.x);
+    const ob_y: i64 = @as(i64, b.y) - @as(i64, o.y);
+    return oa_x * ob_y - oa_y * ob_x;
+}
+\end{lstlisting}
+
+\subsection{Complexity Analysis}
+
+\begin{itemize}
+    \item Finding the pivot: $O(n)$
+    \item Sorting by polar angle: $O(n \log n)$
+    \item Stack-based scan: $O(n)$ amortized (each point is pushed and popped at most once)
+\end{itemize}
+
+Total complexity: $O(n \log n)$, which is optimal for comparison-based convex hull algorithms.
+
+\section{Segment Intersection: Bentley-Ottmann}
+
+\subsection{Problem Definition}
+
+Given $n$ line segments in the plane, find all $k$ intersection points. A naive approach testing all pairs requires $O(n^2)$ time regardless of the number of intersections. Bentley-Ottmann achieves output-sensitive complexity.
+
+\subsection{Algorithm Intuition}
+
+The key insight is that segments can only intersect if they are ``close'' to each other. The sweep line paradigm exploits this by maintaining only segments that overlap at the current $x$-coordinate.
+
+Imagine a vertical line sweeping left-to-right across the plane. At any position, only a subset of segments intersects the sweep line. These \textit{active segments} are ordered by their $y$-coordinate at the current $x$-position. Two segments can only intersect if they become adjacent in this ordering.
+
+\subsection{Event-Driven Processing}
+
+The algorithm processes three types of events:
+
+\begin{enumerate}
+    \item \textbf{Segment start}: A segment's left endpoint is encountered. Insert the segment into the active set and check for intersections with its neighbors.
+
+    \item \textbf{Segment end}: A segment's right endpoint is encountered. Before removing it, check if its former neighbors now intersect.
+
+    \item \textbf{Intersection}: Two segments cross. Swap their positions in the active set (their relative $y$-order reverses) and check for new intersections with their new neighbors.
+\end{enumerate}
+
+\subsection{Data Structures}
+
+\begin{itemize}
+    \item \textbf{Event queue}: A priority queue ordered by $x$-coordinate (then $y$, then event type). Implemented using \texttt{std.PriorityQueue}.
+
+    \item \textbf{Sweep line status}: An ordered set of active segments sorted by $y$ at current $x$. Implemented using a sorted \texttt{ArrayList} for simplicity.
+\end{itemize}
+
+\subsection{Segment Intersection Test}
+
+Two segments $s_1$ from $(x_1, y_1)$ to $(x_2, y_2)$ and $s_2$ from $(x_3, y_3)$ to $(x_4, y_4)$ intersect at parameter values $t$ and $u$:
+
+\begin{equation}
+    t = \frac{(x_1 - x_3)(y_3 - y_4) - (y_1 - y_3)(x_3 - x_4)}{(x_1 - x_2)(y_3 - y_4) - (y_1 - y_2)(x_3 - x_4)}
+\end{equation}
+
+The segments intersect if and only if $t, u \in [0, 1]$.
+
+\subsection{Complexity Analysis}
+
+\begin{itemize}
+    \item Each segment generates 2 events (start and end)
+    \item Each intersection generates 1 event
+    \item Total events: $O(n + k)$
+    \item Each event involves $O(\log n)$ operations on the data structures
+\end{itemize}
+
+Total complexity: $O((n + k) \log n)$, which is superior to $O(n^2)$ when $k = o(n^2 / \log n)$.
+
+\section{Minimum Enclosing Circle: Welzl's Algorithm}
+
+\subsection{Problem Definition}
+
+Given $n$ points in the plane, find the smallest circle (by radius) that contains all points. This circle is unique and is determined by at most three points on its boundary.
+
+\subsection{Algorithm Intuition}
+
+Welzl's algorithm is based on a elegant recursive observation: if we remove an arbitrary point $p$ from the set and compute the minimum enclosing circle for the remaining points, then either:
+
+\begin{enumerate}
+    \item Point $p$ lies inside this circle, so it is also the answer for the full set.
+    \item Point $p$ lies outside, so $p$ must be on the boundary of the minimum enclosing circle for the full set.
+\end{enumerate}
+
+This leads to a recursive algorithm that maintains a set of ``boundary points'' known to lie on the final circle.
+
+\subsection{The Algorithm}
+
+\begin{algorithm}
+\caption{Welzl's Algorithm}
+\begin{algorithmic}[1]
+\Function{Welzl}{$P$, $R$}
+    \If{$P = \emptyset$ or $|R| = 3$}
+        \State \Return \Call{TrivialCircle}{$R$}
+    \EndIf
+    \State Choose random $p \in P$
+    \State $D \gets$ \Call{Welzl}{$P \setminus \{p\}$, $R$}
+    \If{$p \in D$}
+        \State \Return $D$
+    \EndIf
+    \State \Return \Call{Welzl}{$P \setminus \{p\}$, $R \cup \{p\}$}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The \textsc{TrivialCircle} function computes the unique circle through 0, 1, 2, or 3 points:
+\begin{itemize}
+    \item 0 points: degenerate circle with radius 0
+    \item 1 point: circle centered at the point with radius 0
+    \item 2 points: circle with the points as diameter endpoints
+    \item 3 points: circumcircle (or diameter of farthest pair if collinear)
+\end{itemize}
+
+\subsection{Circumcircle Computation}
+
+For three non-collinear points $(a_x, a_y)$, $(b_x, b_y)$, $(c_x, c_y)$, the circumcenter $(u_x, u_y)$ is:
+
+\begin{equation}
+    d = 2(a_x(b_y - c_y) + b_x(c_y - a_y) + c_x(a_y - b_y))
+\end{equation}
+
+\begin{equation}
+    u_x = \frac{(a_x^2 + a_y^2)(b_y - c_y) + (b_x^2 + b_y^2)(c_y - a_y) + (c_x^2 + c_y^2)(a_y - b_y)}{d}
+\end{equation}
+
+This requires floating-point arithmetic, hence the implementation uses \texttt{f64} for circle computations:
+
+\begin{lstlisting}[caption={Circumcircle computation}]
+pub const Circle = struct {
+    center: PointF64,
+    radius: f64,
+
+    pub fn containsPoint(self: Circle, p: PointF64) bool {
+        const epsilon = 1e-9;
+        return self.center.distanceSquaredTo(p) <=
+               (self.radius + epsilon) * (self.radius + epsilon);
+    }
+};
+\end{lstlisting}
+
+\subsection{Complexity Analysis}
+
+The expected running time is $O(n)$. The key insight is that the probability of a point being on the boundary decreases as more points are processed. Specifically, if we process points in random order, the expected number of times we recurse with an enlarged boundary set is constant.
+
+The worst-case complexity is $O(n!)$ but occurs with negligible probability when points are randomly shuffled.
+
+\section{Conclusion}
+
+The three algorithms presented demonstrate different paradigms in computational geometry:
+
+\begin{itemize}
+    \item \textbf{Graham Scan} exemplifies the power of sorting and incremental construction, achieving optimal complexity through careful ordering.
+
+    \item \textbf{Bentley-Ottmann} showcases the sweep line technique, converting a global problem into a sequence of local updates with output-sensitive complexity.
+
+    \item \textbf{Welzl} demonstrates randomized algorithms, where random ordering provides expected linear time despite worst-case exponential behavior.
+\end{itemize}
+
+All implementations are available in the accompanying Zig codebase with SDL3 visualization for interactive exploration.
+
+\begin{thebibliography}{9}
+
+\bibitem{graham1972}
+R. L. Graham,
+\textit{An efficient algorithm for determining the convex hull of a finite planar set},
+Information Processing Letters, vol. 1, no. 4, pp. 132--133, 1972.
+
+\bibitem{bentley1979}
+J. L. Bentley and T. A. Ottmann,
+\textit{Algorithms for reporting and counting geometric intersections},
+IEEE Transactions on Computers, vol. C-28, no. 9, pp. 643--647, 1979.
+
+\bibitem{welzl1991}
+E. Welzl,
+\textit{Smallest enclosing disks (balls and ellipsoids)},
+New Results and New Trends in Computer Science, Lecture Notes in Computer Science, vol. 555, pp. 359--370, 1991.
+
+\bibitem{berg2008}
+M. de Berg, O. Cheong, M. van Kreveld, and M. Overmars,
+\textit{Computational Geometry: Algorithms and Applications},
+3rd ed., Springer-Verlag, 2008.
+
+\end{thebibliography}
+
+\end{document}
