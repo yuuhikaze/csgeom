@@ -43,7 +43,7 @@
 \maketitle
 
 \begin{abstract}
-This report presents implementations of three fundamental computational geometry algorithms: Graham Scan for convex hull computation, Bentley-Ottmann for line segment intersection detection, and Welzl's algorithm for minimum enclosing circle. Each algorithm is explained intuitively with emphasis on the key insights that enable efficient computation. The implementations are developed in Zig with SDL3 visualization.
+This report presents implementations of three fundamental computational geometry algorithms: Graham Scan for convex hull computation, Bentley-Ottmann for line segment intersection detection, and Welzl's algorithm for minimum enclosing circle. Each algorithm is explained intuitively with emphasis on the key insights that enable efficient computation. The implementations are developed in Zig with SDL3 visualization. As a practical application, we apply these algorithms to determine optimal antenna placement for covering the 34 parishes of Quito, Ecuador, using real geographic data from INEC Ecuador.
 \end{abstract}
 
 \section{Introduction}
@@ -244,6 +244,154 @@ The expected running time is $O(n)$. The key insight is that the probability of 
 
 The worst-case complexity is $O(n!)$ but occurs with negligible probability when points are randomly shuffled.
 
+\section{Application: Antenna Network in Quito}
+
+\subsection{Problem Statement}
+
+A telecommunications company wants to cover $n$ neighborhoods (parishes) of Quito with a single antenna that minimizes the coverage radius. This is a direct application of the minimum enclosing circle problem to real geographic data.
+
+The objectives are:
+\begin{enumerate}
+    \item Compute the minimum enclosing circle for parish centroids
+    \item Visualize the points, circle, and convex hull overlaid
+    \item Compare the ``wasted area'' between circle and convex hull
+    \item Report the optimal antenna location in geographic coordinates
+\end{enumerate}
+
+\subsection{Data Acquisition}
+
+Real parish boundary data was obtained from INEC Ecuador (Instituto Nacional de Estadística y Censos) via their public ArcGIS FeatureServer:
+
+\begin{lstlisting}[language=bash,caption={Fetching GeoJSON data from INEC Ecuador}]
+curl -s "https://services7.arcgis.com/iFGeGXTAJXnjq0YN/\
+ArcGIS/rest/services/Parroquias_del_Ecuador/FeatureServer/0/\
+query?where=DPA_DESCAN='QUITO'&outFields=DPA_PARROQ,DPA_DESPAR\
+&returnGeometry=true&outSR=4326&f=geojson" \
+> data/quito_parroquias.geojson
+\end{lstlisting}
+
+This query returns 34 parishes in the Quito canton, each with MultiPolygon geometry defining its boundaries and properties including the parish name (\texttt{DPA\_DESPAR}) and code (\texttt{DPA\_PARROQ}).
+
+\subsection{Data Preprocessing}
+
+The GeoJSON contains complex MultiPolygon geometries. For the antenna placement problem, we need a single representative point (centroid) for each parish. A Python script extracts these centroids:
+
+\begin{lstlisting}[language=Python,caption={Centroid extraction from GeoJSON}]
+import json
+
+def multipolygon_centroid(coords):
+    """Use largest polygon's centroid (by area)"""
+    max_area = 0
+    best_centroid = (0, 0)
+    for polygon in coords:
+        ring = polygon[0]  # exterior ring
+        n = len(ring)
+        # Shoelace formula for area
+        area = abs(sum(ring[i][0] * ring[(i+1)%n][1] -
+                       ring[(i+1)%n][0] * ring[i][1]
+                       for i in range(n))) / 2
+        if area > max_area:
+            max_area = area
+            # Centroid as average of vertices
+            best_centroid = (sum(p[0] for p in ring) / n,
+                            sum(p[1] for p in ring) / n)
+    return best_centroid
+
+data = json.load(open("data/quito_parroquias.geojson"))
+for feature in data["features"]:
+    name = feature["properties"]["DPA_DESPAR"]
+    lon, lat = multipolygon_centroid(
+        feature["geometry"]["coordinates"])
+    print(f"{name},{lat:.6f},{lon:.6f}")
+\end{lstlisting}
+
+The output is a CSV file with 34 parish centroids, ranging from PACTO (lat 0.161°, lon -78.853°) in the northwest to PINTAG (lat -0.365°, lon -78.358°) in the southeast.
+
+\subsection{Coordinate Transformation}
+
+Geographic coordinates (latitude/longitude) must be transformed for geometric computations. The implementation uses an equirectangular projection centered on Quito:
+
+\begin{lstlisting}[caption={Geographic to local coordinate conversion}]
+const EARTH_RADIUS_KM: f64 = 6371.0;
+const QUITO_REF_LAT: f64 = -0.18;  // degrees
+const QUITO_REF_LON: f64 = -78.47;
+
+pub fn latLonToKm(lat: f64, lon: f64) struct { x: f64, y: f64 } {
+    const lat_rad = lat * std.math.pi / 180.0;
+    const lon_rad = lon * std.math.pi / 180.0;
+    const ref_lat_rad = QUITO_REF_LAT * std.math.pi / 180.0;
+    const ref_lon_rad = QUITO_REF_LON * std.math.pi / 180.0;
+
+    // Equirectangular projection
+    const x = EARTH_RADIUS_KM * (lon_rad - ref_lon_rad)
+              * @cos(ref_lat_rad);
+    const y = EARTH_RADIUS_KM * (lat_rad - ref_lat_rad);
+    return .{ .x = x, .y = y };
+}
+\end{lstlisting}
+
+This projection preserves distances reasonably well for the scale of Quito (approximately 70 km × 60 km).
+
+\subsection{Implementation Pipeline}
+
+The antenna placement runner combines the previously implemented algorithms:
+
+\begin{enumerate}
+    \item \textbf{Load and parse}: Read embedded CSV data, extract parish centroids
+    \item \textbf{Transform coordinates}: Convert lat/lon to local km, then scale to [0,100] for the renderer
+    \item \textbf{Compute minimum enclosing circle}: Apply Welzl's algorithm to the scaled points
+    \item \textbf{Compute convex hull}: Apply Graham Scan for area comparison
+    \item \textbf{Calculate metrics}: Circle area ($\pi r^2$), hull area (shoelace formula), waste percentage
+    \item \textbf{Transform results}: Convert circle center back to geographic coordinates, radius to km
+    \item \textbf{Visualize}: Render points, circle, and hull overlaid
+\end{enumerate}
+
+\subsection{Area Comparison}
+
+The ``wasted area'' quantifies how much extra coverage the circular antenna provides beyond what is strictly necessary:
+
+\begin{equation}
+    \text{Waste \%} = \frac{A_{\text{circle}} - A_{\text{hull}}}{A_{\text{circle}}} \times 100
+\end{equation}
+
+The convex hull represents the minimal convex region containing all parishes, while the circle must extend beyond to maintain its shape constraint.
+
+\subsection{Results}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|}
+\hline
+\textbf{Metric} & \textbf{Value} \\
+\hline
+Parishes analyzed & 34 \\
+Optimal antenna latitude & $-0.1046°$ \\
+Optimal antenna longitude & $-78.6086°$ \\
+Coverage radius & 39.76 km \\
+Circle area & 4,966.78 km² \\
+Convex hull area & 440.68 km² \\
+Area waste & 91.13\% \\
+\hline
+\end{tabular}
+\caption{Antenna placement results for Quito parishes}
+\label{tab:antenna-results}
+\end{table}
+
+The high waste percentage (91.13\%) reflects the geographic distribution of Quito's parishes: rural parishes in the northwest (Pacto, Gualea, Nanegal) extend far from the urban core, forcing the enclosing circle to cover substantial unpopulated terrain.
+
+\subsection{Discussion}
+
+The optimal antenna location ($-0.1046°$, $-78.6086°$) falls near the parish of Nono, northwest of urban Quito. This counterintuitive result arises because Welzl's algorithm minimizes the \textit{maximum} distance to any parish, not the \textit{average} distance. The remote northwestern parishes pull the center away from the population center.
+
+For practical telecommunications deployment, this analysis suggests that:
+\begin{itemize}
+    \item A single antenna requires approximately 40 km radius coverage
+    \item Over 91\% of the circular coverage area contains no parish centroids
+    \item Multiple smaller antennas would likely be more efficient
+\end{itemize}
+
+The convex hull provides a tighter bound (440.68 km²), but real antenna coverage is inherently circular (or sector-based), making the enclosing circle the relevant constraint.
+
 \section{Conclusion}
 
 The three algorithms presented demonstrate different paradigms in computational geometry:
@@ -255,6 +403,8 @@ The three algorithms presented demonstrate different paradigms in computational 
 
     \item \textbf{Welzl} demonstrates randomized algorithms, where random ordering provides expected linear time despite worst-case exponential behavior.
 \end{itemize}
+
+The Quito antenna network application demonstrates that these theoretical algorithms have direct practical value. By combining Welzl's algorithm with real geographic data, we determined that covering all 34 Quito parishes requires an antenna with 39.76 km radius, with 91\% area waste compared to the convex hull---highlighting the geometric inefficiency of circular coverage for irregularly distributed populations.
 
 All implementations are available in the accompanying Zig codebase with SDL3 visualization for interactive exploration.
 
@@ -279,6 +429,12 @@ New Results and New Trends in Computer Science, Lecture Notes in Computer Scienc
 M. de Berg, O. Cheong, M. van Kreveld, and M. Overmars,
 \textit{Computational Geometry: Algorithms and Applications},
 3rd ed., Springer-Verlag, 2008.
+
+\bibitem{inec2024}
+Instituto Nacional de Estadística y Censos (INEC) Ecuador,
+\textit{Parroquias del Ecuador - ArcGIS FeatureServer},
+\url{https://services7.arcgis.com/iFGeGXTAJXnjq0YN/ArcGIS/rest/services/Parroquias_del_Ecuador/FeatureServer},
+accessed March 2026.
 
 \end{thebibliography}
 
