@@ -1,0 +1,66 @@
+1. Toolkit geométrico
+
+Cada uno de ustedes debe crear un módulo Python reutilizable (geometria_toolkit.py) que contenga las implementaciones limpias y documentadas de:
+
+    orient2d(p, q, r) — versión robusta (adaptativa o con fallback) - utilizando los métodos vistos en clase. 
+    convex_hull(points) — algoritmo óptimo (Graham Scan o Monotone Chain) - revisando el código entregado en clase.
+    segment_intersection(segments) — plane sweep (Bentley-Ottmann) - analizando y mejorando el código entregado en clase.
+    Funciones auxiliares necesarias. 
+
+Requisitos del toolkit: - Código limpio, modular y bien documentado. Construcción de pruebas unitarias (pruebas por función) (Si usan pytest es mejor). Documentar los casos de prueba. 
+
+2. Círculo Mínimo Envolvente
+Problema
+
+El Smallest Enclosing Circle (SEC) es el círculo de radio mínimo que contiene un conjunto de puntos. A diferencia del convex hull (polígono), el SEC es un círculo y tiene aplicaciones en:
+
+    Colocación de antenas de telecomunicaciones (área de cobertura).
+     Diseño de zonas de seguridad.
+    Optimización de rutas de drones.
+
+2.1 Implementación con algoritmo de Welzl
+
+El algoritmo de Welzl es elegante y usa recursión + aleatorización:
+
+función welzl(P, R):
+    # P = puntos restantes, R = puntos en el borde (|R| ≤ 3)
+    si P está vacío o |R| = 3:
+        return círculo_trivial(R)
+
+    p = punto aleatorio de P
+    C = welzl(P \ {p}, R)
+
+    si p está en C:
+        return C
+    else:
+        return welzl(P \ {p}, R ∪ {p})
+
+Su tarea:
+
+    Implementa welzl(points) con:
+        Función auxiliar trivial_circle(R) para casos base.
+        Test de punto-en-círculo robusto.
+        Manejo de casos degenerados (2 puntos colineales, etc.).
+
+    Implementa enfoque determinista alternativo (para comparar):
+        Usa el convex hull como optimización inicial.
+        Prueba todos los pares y triples de puntos del hull.
+        Selecciona el círculo mínimo.
+
+    Experimentos:
+        Compara tiempo de ejecución: Welzl vs. enfoque determinista
+        Datasets: 10, 100, 1000, 10000 puntos
+        ¿Cuándo Welzl es más rápido? ¿Por cuánto?
+
+2.2 Aplicación: Red de Antenas en Quito
+
+Escenario: Una empresa de telecomunicaciones quiere cubrir N barrios de Quito con una sola antena que minimice el radio de cobertura.
+
+Dataset: Genera o usa coordenadas de 50-100 barrios de Quito (puedes usar datos reales de coordenadas de parroquias).
+
+Tareas: 
+
+    Calcula el círculo mínimo envolvente
+    Visualiza: puntos + círculo + convex hull (superpuestos)
+    Compara: ¿qué porcentaje de área "desperdicia" el círculo respecto al convex hull?
+    Reporta: centro óptimo de la antena (coordenadas geográficas), radio en km

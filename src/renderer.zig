@@ -105,6 +105,67 @@ pub const Renderer = struct {
         }
     }
 
+    /// Render circle (blue) using line segment approximation
+    pub fn renderCircle(self: *Renderer, center: anytype, radius: f64) void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 255, 255);
+
+        const cx: f32 = @floatCast(center.x);
+        const cy: f32 = @floatCast(center.y);
+        const r: f32 = @floatCast(radius);
+
+        const scaled_cx = cx * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+        const scaled_cy = cy * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+        const scaled_r = r * self.arena_dimensions.scale;
+
+        // Draw circle using line segments
+        const segments: u32 = 64;
+        var i: u32 = 0;
+        while (i < segments) : (i += 1) {
+            const angle1 = @as(f32, @floatFromInt(i)) * 2.0 * std.math.pi / @as(f32, @floatFromInt(segments));
+            const angle2 = @as(f32, @floatFromInt(i + 1)) * 2.0 * std.math.pi / @as(f32, @floatFromInt(segments));
+
+            const x1 = scaled_cx + scaled_r * @cos(angle1);
+            const y1 = scaled_cy + scaled_r * @sin(angle1);
+            const x2 = scaled_cx + scaled_r * @cos(angle2);
+            const y2 = scaled_cy + scaled_r * @sin(angle2);
+
+            _ = sdl.SDL_RenderLine(self.renderer, x1, y1, x2, y2);
+        }
+    }
+
+    /// Render segments (green)
+    pub fn renderSegments(self: *Renderer, segments: []const lib.segment_intersection.Segment) void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 180, 0, 255);
+        for (segments) |seg| {
+            const x1 = @as(f32, @floatFromInt(seg.start.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const y1 = @as(f32, @floatFromInt(seg.start.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+            const x2 = @as(f32, @floatFromInt(seg.end.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const y2 = @as(f32, @floatFromInt(seg.end.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+
+            _ = sdl.SDL_RenderLine(self.renderer, x1, y1, x2, y2);
+
+            // Draw endpoints
+            _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 0, 0, 255);
+            const rect1 = sdl.SDL_FRect{ .x = x1 - 2.0, .y = y1 - 2.0, .w = 4.0, .h = 4.0 };
+            const rect2 = sdl.SDL_FRect{ .x = x2 - 2.0, .y = y2 - 2.0, .w = 4.0, .h = 4.0 };
+            _ = sdl.SDL_RenderFillRect(self.renderer, &rect1);
+            _ = sdl.SDL_RenderFillRect(self.renderer, &rect2);
+            _ = sdl.SDL_SetRenderDrawColor(self.renderer, 0, 180, 0, 255);
+        }
+    }
+
+    /// Render intersection points (red, larger)
+    pub fn renderIntersections(self: *Renderer, intersections: []const lib.segment_intersection.Intersection) void {
+        _ = sdl.SDL_SetRenderDrawColor(self.renderer, 255, 0, 0, 255);
+        for (intersections) |intersection| {
+            const x = @as(f32, @floatFromInt(intersection.x)) * self.arena_dimensions.scale + self.arena_dimensions.offset_x;
+            const y = @as(f32, @floatFromInt(intersection.y)) * self.arena_dimensions.scale + self.arena_dimensions.offset_y;
+
+            const rect = sdl.SDL_FRect{ .x = x - 4.0, .y = y - 4.0, .w = 8.0, .h = 8.0 };
+            _ = sdl.SDL_RenderFillRect(self.renderer, &rect);
+        }
+    }
+
     /// Present renderer
     pub fn present(self: *Renderer) void {
         _ = sdl.SDL_RenderPresent(self.renderer);

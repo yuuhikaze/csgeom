@@ -9,10 +9,15 @@ pub const Config = struct {
 
 pub const Algorithm = enum {
     ConvexHull,
+    SegmentIntersection,
+    EnclosingCircle,
 };
 
 pub const Implementation = enum {
     Slow,
+    GrahamScan,
+    BentleyOttmann,
+    Welzl,
 };
 
 pub var init: std.process.Init = undefined;
